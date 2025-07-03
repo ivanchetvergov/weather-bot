@@ -1,6 +1,19 @@
 /* This is a JSON format configuration file
  */
 {
+    "db_clients": [
+        {
+            "name": "pg",               
+            "rdbms": "postgresql",
+            "host": "localhost",
+            "port": 5432,
+            "dbname": "weather_bot",
+            "user": "ivan",
+            "password": "1234",
+            "is_fast": false,
+            "connection_number": 2
+        }
+    ],
     /*
     //ssl:The global SSL settings. "key" and "cert" are the path to the SSL key and certificate. While
     //    "conf" is an array of 1 or 2-element tuples that supplies file style options for `SSL_CONF_cmd`.

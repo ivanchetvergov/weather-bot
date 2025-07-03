@@ -73,3 +73,5 @@ target_sources(${PROJECT_NAME}
 # ##############################################################################
 
 add_subdirectory(test)
+
+add_subdirectory(models)
