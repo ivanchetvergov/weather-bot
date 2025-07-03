@@ -5,7 +5,7 @@
 #include <drogon/HttpResponse.h>   
 #include <functional>               
 
-class Telegram : public drogon::HttpController<Telegram> {
+class Telegram : public HttpController<Telegram> {
   public:
     METHOD_LIST_BEGIN
       ADD_METHOD_TO(Telegram::handleWebhook, "/telegram", Post);

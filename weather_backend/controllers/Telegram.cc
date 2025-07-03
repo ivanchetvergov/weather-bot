@@ -31,7 +31,7 @@ void Telegram::handleWebhook(const HttpRequestPtr& req,
     users.insert(user,
         [callback](const models::Users &u) {
             Json::Value res;
-            res["status"] = "✅ saved";
+            res["status"] = "saved";
             res["id"] = u.getValueOfId();
             callback(HttpResponse::newHttpJsonResponse(res));
         },

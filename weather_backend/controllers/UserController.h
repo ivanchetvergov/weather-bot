@@ -4,7 +4,7 @@
 
 using namespace drogon;
 
-class UserController : public drogon::HttpController<UserController> {
+class UserController : public HttpController<UserController> {
 public:
     METHOD_LIST_BEGIN
         ADD_METHOD_TO(UserController::getAllUsers, "/users", Get);
