@@ -1,15 +1,18 @@
-#include "../include/Telegram.h"
+#include "../include/TelegramController.h"
 #include <drogon/orm/Mapper.h>
 #include "../models/Users.h"  
 
 using namespace drogon;
 using namespace drogon::orm;
+using namespace drogon_model::weather_bot;
 
 void Telegram::handleWebhook(const HttpRequestPtr& req,
                              std::function<void(const HttpResponsePtr&)>&& callback) {
     auto json = req->getJsonObject();
     if (!json || !(*json).isMember("message")) {
-        callback(HttpResponse::newHttpResponse("No message"));
+        auto resp = HttpResponse::newHttpResponse();
+        resp->setBody("No message");
+        callback(resp);
         return;
     }
 
@@ -20,16 +23,16 @@ void Telegram::handleWebhook(const HttpRequestPtr& req,
 
     // save user to db
     auto client = app().getDbClient("pg");
-    Mapper<models::Users> users(client);
+    Mapper<Users> users(client);
 
-    models::Users user;
+    Users user;
     user.setId(id);
     user.setFirstName(firstName);
     user.setUsername(username);
     user.setCreatedAt(trantor::Date::now());
 
     users.insert(user,
-        [callback](const models::Users &u) {
+        [callback](const Users &u) {
             Json::Value res;
             res["status"] = "saved";
             res["id"] = u.getValueOfId();

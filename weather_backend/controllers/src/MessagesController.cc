@@ -4,13 +4,14 @@
 
 using namespace drogon;
 using namespace drogon::orm;
+using namespace drogon_model::weather_bot;
 
 void MessagesController::getAll(const HttpRequestPtr& req,
                                 std::function<void(const HttpResponsePtr&)>&& callback) {
-    Mapper<models::Messages> mapper(app().getDbClient("pg")); 
+    Mapper<Messages> mapper(app().getDbClient("pg")); 
     // SQL call
     mapper.findAll(
-        [callback](const std::vector<models::Messages>& messages) {
+        [callback](const std::vector<Messages>& messages) {
             Json::Value arr(Json::arrayValue);
             for (const auto& m : messages) {
                 Json::Value item;
@@ -32,10 +33,10 @@ void MessagesController::getAll(const HttpRequestPtr& req,
 void MessagesController::getOne(const HttpRequestPtr& req,
                                 std::function<void(const HttpResponsePtr&)>&& callback,
                                 int id) {
-    Mapper<models::Messages> mapper(app().getDbClient("pg"));
+    Mapper<Messages> mapper(app().getDbClient("pg"));
     mapper.findByPrimaryKey(id,
         // if found id send HTTP response
-        [callback](const models::Messages& m) {
+        [callback](const Messages& m) {
             Json::Value res;
             res["id"] = m.getValueOfId();
             res["user_id"] = m.getValueOfUserId();
@@ -60,14 +61,14 @@ void MessagesController::create(const HttpRequestPtr& req,
         return;
     }
 
-    models::Messages msg;
+    Messages msg;
     msg.setUserId((*json)["user_id"].asInt64());
     msg.setText((*json)["text"].asString());
     msg.setCreatedAt(trantor::Date::now());
 
-    Mapper<models::Messages> mapper(app().getDbClient("pg"));
+    Mapper<Messages> mapper(app().getDbClient("pg"));
     mapper.insert(msg,
-        [callback](const models::Messages& inserted) {
+        [callback](const Messages& inserted) {
             Json::Value res;
             res["status"] = "message saved";
             res["id"] = inserted.getValueOfId();
@@ -83,11 +84,11 @@ void MessagesController::create(const HttpRequestPtr& req,
 void MessagesController::remove(const HttpRequestPtr& req,
                                 std::function<void(const HttpResponsePtr&)>&& callback,
                                 int id) {
-    Mapper<models::Messages> mapper(app().getDbClient("pg"));
+    Mapper<Messages> mapper(app().getDbClient("pg"));
     mapper.deleteByPrimaryKey(id,
-        [callback]() {
+        [callback](size_t count) {
             Json::Value res;
-            res["status"] = "message deleted";
+            res["status"] = (count > 0) ? "message deleted" : "not found";
             callback(HttpResponse::newHttpJsonResponse(res));
         },
         [callback](const DrogonDbException& e) {

@@ -4,15 +4,16 @@
 
 using namespace drogon;
 using namespace drogon::orm;
+using namespace drogon_model::weather_bot;
 
 void UserController::getAllUsers(const HttpRequestPtr& req,
                                  std::function<void(const HttpResponsePtr&)>&& callback) {
     auto db = app().getDbClient("pg"); // read db
-    Mapper<models::Users> users(db); // db controller
+    Mapper<Users> users(db); // db controller
     // SQL call
     users.findAll( 
         // succes handler 
-        [callback](const std::vector<models::Users>& allUsers) {
+        [callback](const std::vector<Users>& allUsers) {
             Json::Value arr(Json::arrayValue);
             for (const auto& u : allUsers) {
                 Json::Value item;
@@ -42,7 +43,7 @@ void UserController::createUser(const HttpRequestPtr& req,
         return;
     }
 
-    models::Users user;
+    Users user;
     user.setId((*json)["id"].asInt64());
     user.setFirstName((*json)["first_name"].asString());
 
@@ -53,10 +54,10 @@ void UserController::createUser(const HttpRequestPtr& req,
     user.setCreatedAt(trantor::Date::now());
 
     auto db = app().getDbClient("pg");
-    Mapper<models::Users> users(db);
+    Mapper<Users> users(db);
 
     users.insert(user,
-        [callback](const models::Users& inserted) {
+        [callback](const Users& inserted) {
             Json::Value res;
             res["status"] = "✅ user created";
             res["id"] = inserted.getValueOfId();
@@ -73,12 +74,12 @@ void UserController::deleteUser(const HttpRequestPtr& req,
                                 std::function<void(const HttpResponsePtr&)>&& callback,
                                 int64_t userId) {
     auto db = app().getDbClient("pg");
-    Mapper<models::Users> users(db);
+    Mapper<Users> users(db);
 
     users.deleteByPrimaryKey(userId,
-        [callback]() {
+        [callback](size_t count) {
             Json::Value res;
-            res["status"] = "🗑️ user deleted";
+            res["status"] = (count > 0) ? "user deleted" : "not found";
             callback(HttpResponse::newHttpJsonResponse(res));
         },
         [callback](const DrogonDbException& e) {

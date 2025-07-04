@@ -1,15 +1,16 @@
-#include "../include/AlertsController.h"
+#include <AlertsController.h>
 #include <models/Alerts.h>
 #include <drogon/orm/Mapper.h>
 
 using namespace drogon;
 using namespace drogon::orm;
+using namespace drogon_model::weather_bot;
 
 void AlertsController::getAll(const HttpRequestPtr& req,
                               std::function<void(const HttpResponsePtr&)>&& callback) {
-    Mapper<models::Alerts> mapper(app().getDbClient("pg"));
+    Mapper<Alerts> mapper(app().getDbClient("pg"));
     mapper.findAll(
-        [callback](const std::vector<models::Alerts>& alerts) {
+        [callback](const std::vector<Alerts>& alerts) {
             Json::Value arr(Json::arrayValue);
             for (const auto& a : alerts) {
                 Json::Value item;
@@ -32,9 +33,9 @@ void AlertsController::getAll(const HttpRequestPtr& req,
 void AlertsController::getOne(const HttpRequestPtr& req,
                               std::function<void(const HttpResponsePtr&)>&& callback,
                               int id) {
-    Mapper<models::Alerts> mapper(app().getDbClient("pg"));
+    Mapper<Alerts> mapper(app().getDbClient("pg"));
     mapper.findByPrimaryKey(id,
-        [callback](const models::Alerts& a) {
+        [callback](const Alerts& a) {
             Json::Value res;
             res["id"] = a.getValueOfId();
             res["user_id"] = a.getValueOfUserId();
@@ -60,15 +61,15 @@ void AlertsController::create(const HttpRequestPtr& req,
         return;
     }
 
-    models::Alerts alert;
+    Alerts alert;
     alert.setUserId((*json)["user_id"].asInt64());
     alert.setCity((*json)["city"].asString());
     alert.setCondition((*json)["condition"].asString());
     alert.setSentAt(trantor::Date::now());
 
-    Mapper<models::Alerts> mapper(app().getDbClient("pg"));
+    Mapper<Alerts> mapper(app().getDbClient("pg"));
     mapper.insert(alert,
-        [callback](const models::Alerts& inserted) {
+        [callback](const Alerts& inserted) {
             Json::Value res;
             res["status"] = "alert created";
             res["id"] = inserted.getValueOfId();
@@ -84,16 +85,17 @@ void AlertsController::create(const HttpRequestPtr& req,
 void AlertsController::remove(const HttpRequestPtr& req,
                               std::function<void(const HttpResponsePtr&)>&& callback,
                               int id) {
-    Mapper<models::Alerts> mapper(app().getDbClient("pg"));
+    Mapper<Alerts> mapper(app().getDbClient("pg"));
     mapper.deleteByPrimaryKey(id,
-        [callback]() {
-            Json::Value res;
-            res["status"] = "alert deleted";
-            callback(HttpResponse::newHttpJsonResponse(res));
-        },
-        [callback](const DrogonDbException& e) {
-            Json::Value err;
-            err["error"] = e.base().what();
-            callback(HttpResponse::newHttpJsonResponse(err));
-        });
+    [callback](size_t count) {
+        Json::Value res;
+        res["status"] = count > 0 ? "alert deleted" : "not found";
+        callback(HttpResponse::newHttpJsonResponse(res));
+    },
+    [callback](const DrogonDbException& e) {
+        Json::Value err;
+        err["error"] = e.base().what();
+        callback(HttpResponse::newHttpJsonResponse(err));
+    });
+
 }

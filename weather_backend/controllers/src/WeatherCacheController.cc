@@ -1,16 +1,18 @@
 #include "../include/WeatherCacheController.h"
 #include <models/WeatherCache.h>
 #include <drogon/orm/Mapper.h>
+#include <json/writer.h> // FastWrite
 
 using namespace drogon;
 using namespace drogon::orm;
+using namespace drogon_model::weather_bot;
 
 void WeatherCacheController::get(const HttpRequestPtr& req,
                                  std::function<void(const HttpResponsePtr&)>&& callback,
                                  std::string city) {
-    Mapper<models::WeatherCache> mapper(app().getDbClient("pg"));
+    Mapper<WeatherCache> mapper(app().getDbClient("pg"));
     mapper.findByPrimaryKey(city,
-        [callback](const models::WeatherCache& cache) {
+        [callback](const WeatherCache& cache) {
             callback(HttpResponse::newHttpJsonResponse(cache.getValueOfJsonData()));
         },
         [callback](const DrogonDbException& e) {
@@ -30,14 +32,14 @@ void WeatherCacheController::put(const HttpRequestPtr& req,
         return;
     }
 
-    models::WeatherCache cache;
+    WeatherCache cache;
     cache.setCity((*json)["city"].asString());
     cache.setTimestamp(trantor::Date::now());
-    cache.setJsonData((*json)["data"]);
+    cache.setJsonData(Json::FastWriter().write((*json)["data"]));
 
-    Mapper<models::WeatherCache> mapper(app().getDbClient("pg"));
+    Mapper<WeatherCache> mapper(app().getDbClient("pg"));
     mapper.insert(cache,
-        [callback](const models::WeatherCache&) {
+        [callback](const WeatherCache&) {
             Json::Value res;
             res["status"] = "cache updated";
             callback(HttpResponse::newHttpJsonResponse(res));

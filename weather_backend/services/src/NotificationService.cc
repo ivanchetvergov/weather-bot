@@ -11,8 +11,9 @@ void NotificationService::checkAndNotify() {
     auto db = drogon::app().getDbClient();
 
     // get all subs
-    db->execSqlAsync("SELECT s.user_id, s.city, s.temp_above, s.rain, s.wind_speed_gt, u.id as chat_id 
-        FROM subscriptions s JOIN users u ON s.user_id = u.id",
+    db->execSqlAsync(
+        R"(SELECT s.user_id, s.city, s.temp_above, s.rain, s.wind_speed_gt, u.id as chat_id
+            FROM subscriptions s JOIN users u ON s.user_id = u.id)",
         [](const Result& res) {
             for (const auto& row : res) {
                 int64_t userId = row["user_id"].as<int64_t>();
@@ -22,34 +23,35 @@ void NotificationService::checkAndNotify() {
                 float windSpeedGt = row["wind_speed_gt"].isNull() ? -1.0f : row["wind_speed_gt"].as<float>();
                 int64_t chatId = row["chat_id"].as<int64_t>();
 
-                WeatherService::fetchWeather(city, [=](const Json::Value& weather) {
-                    if (!weather.isObject()) return;
+                // sync weath call
+                auto maybeWeather = WeatherService::fetchWeather(city);
+                if (!maybeWeather || !maybeWeather->isObject()) continue;
 
-                    float temp = weather["main"]["temp"].asFloat();
-                    bool rain = weather.isMember("rain");
-                    float wind = weather["wind"]["speed"].asFloat();
+                const auto& weather = *maybeWeather;
+                float temp = weather["main"]["temp"].asFloat();
+                bool rain = weather.isMember("rain");
+                float wind = weather["wind"]["speed"].asFloat();
 
-                    bool notify = false;
-                    std::string reason;
+                bool notify = false;
+                std::string reason;
 
-                    if (temp > tempAbove) {
-                        notify = true;
-                        reason += "температура выше " + std::to_string(tempAbove) + "°C\n";
-                    }
-                    if (wantsRain && rain) {
-                        notify = true;
-                        reason += "идёт дождь\n";
-                    }
-                    if (wind > windSpeedGt) {
-                        notify = true;
-                        reason += "ветер сильнее " + std::to_string(windSpeedGt) + " м/с\n";
-                    }
+                if (temp > tempAbove) {
+                    notify = true;
+                    reason += "температура выше " + std::to_string(tempAbove) + "°C\n";
+                }
+                if (wantsRain && rain) {
+                    notify = true;
+                    reason += "идёт дождь\n";
+                }
+                if (wind > windSpeedGt) {
+                    notify = true;
+                    reason += "ветер сильнее " + std::to_string(windSpeedGt) + " м/с\n";
+                }
 
-                    if (notify) {
-                        std::string text = "в городе " + city + " сейчас:\n" + reason;
-                        TelegramService::sendMessage(chatId, text);
-                    }
-                });
+                if (notify) {
+                    std::string text = "в городе " + city + " сейчас:\n" + reason;
+                    TelegramService::sendMessage(chatId, text);
+                }
             }
         },
         [](const DrogonDbException& e) {

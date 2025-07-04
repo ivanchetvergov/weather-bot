@@ -4,12 +4,13 @@
 
 using namespace drogon;
 using namespace drogon::orm;
+using namespace drogon_model::weather_bot;
 
 void SubscriptionsController::getAll(const HttpRequestPtr& req,
                                      std::function<void(const HttpResponsePtr&)>&& callback) {
-    Mapper<models::Subscriptions> mapper(app().getDbClient("pg"));
+    Mapper<Subscriptions> mapper(app().getDbClient("pg"));
     mapper.findAll(
-        [callback](const std::vector<models::Subscriptions>& subs) {
+        [callback](const std::vector<Subscriptions>& subs) {
             Json::Value arr(Json::arrayValue);
             for (const auto& s : subs) {
                 Json::Value item;
@@ -19,7 +20,7 @@ void SubscriptionsController::getAll(const HttpRequestPtr& req,
                 item["temp_above"] = s.getValueOfTempAbove();
                 item["rain"] = s.getValueOfRain();
                 item["wind_speed_gt"] = s.getValueOfWindSpeedGt();
-                item["notify_time"] = s.getValueOfNotifyTime().toFormattedString(false);
+                item["notify_time"] = s.getValueOfNotifyTime();
                 arr.append(item);
             }
             callback(HttpResponse::newHttpJsonResponse(arr));
@@ -41,18 +42,18 @@ void SubscriptionsController::create(const HttpRequestPtr& req,
         return;
     }
 
-    models::Subscriptions sub;
+    Subscriptions sub;
     sub.setUserId((*json)["user_id"].asInt64());
     sub.setCity((*json)["city"].asString());
 
     if (json->isMember("temp_above")) sub.setTempAbove((*json)["temp_above"].asFloat());
     if (json->isMember("rain")) sub.setRain((*json)["rain"].asBool());
     if (json->isMember("wind_speed_gt")) sub.setWindSpeedGt((*json)["wind_speed_gt"].asFloat());
-    if (json->isMember("notify_time")) sub.setNotifyTime(trantor::Date::fromDbStringLocal((*json)["notify_time"].asString()));
+    if (json->isMember("notify_time")) sub.setNotifyTime((*json)["notify_time"].asString());
 
-    Mapper<models::Subscriptions> mapper(app().getDbClient("pg"));
+    Mapper<Subscriptions> mapper(app().getDbClient("pg"));
     mapper.insert(sub,
-        [callback](const models::Subscriptions& inserted) {
+        [callback](const Subscriptions& inserted) {
             Json::Value res;
             res["status"] = "subscription saved";
             res["id"] = inserted.getValueOfId();
@@ -68,11 +69,11 @@ void SubscriptionsController::create(const HttpRequestPtr& req,
 void SubscriptionsController::remove(const HttpRequestPtr& req,
                                      std::function<void(const HttpResponsePtr&)>&& callback,
                                      int id) {
-    Mapper<models::Subscriptions> mapper(app().getDbClient("pg"));
+    Mapper<Subscriptions> mapper(app().getDbClient("pg"));
     mapper.deleteByPrimaryKey(id,
-        [callback]() {
+        [callback](size_t count) {
             Json::Value res;
-            res["status"] = "🗑️ subscription deleted";
+            res["status"] = (count > 0) ? "subscription deleted" : "not found";
             callback(HttpResponse::newHttpJsonResponse(res));
         },
         [callback](const DrogonDbException& e) {

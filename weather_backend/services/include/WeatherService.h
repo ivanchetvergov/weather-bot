@@ -7,7 +7,10 @@
 
 class WeatherService {
 public:
+    static void fetchWeather(const std::string& city,
+                                        std::function<void(const Json::Value&)> callback);
     static std::optional<Json::Value> fetchWeather(const std::string& city);
+
     static void cacheWeather(const std::string& city, const Json::Value& data);
     static std::optional<Json::Value> getCachedWeather(const std::string& city);
 

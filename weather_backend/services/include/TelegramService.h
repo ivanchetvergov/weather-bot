@@ -30,4 +30,8 @@ public:
 
     /// make command after NLP analys
     static void processCommand(int64_t chatId, const TelegramCommand& command);
+
+    // TODO: добавить обработку кастомных запросов. такие вещи нельзя будет организовать но это будут запросы
+    // которые будут обрабатывать NLP храниться в виде строки и по расписанию или же моментально передаваться
+    // open source gpt model по типу llama и возвращать ответ
 };

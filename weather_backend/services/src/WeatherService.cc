@@ -18,25 +18,60 @@ void WeatherService::fetchWeather(const std::string& city,
     client->sendRequest(req, [callback](drogon::ReqResult result, const drogon::HttpResponsePtr& resp) {
         if (result != drogon::ReqResult::Ok) {
             LOG_ERROR << "weather api error: " << result;
-            callback(Json::Value()); // пустой json
+            callback(Json::Value()); // empty json
         } else {
             Json::Reader reader;
             Json::Value data;
-            reader.parse(resp->body(), data);
+            reader.parse(std::string(resp->body()), data);
             callback(data);
         }
     });
 }
 
+std::optional<Json::Value> WeatherService::fetchWeather(const std::string &city) {
+    auto client = drogon::HttpClient::newHttpClient("https://api.openweathermap.org");
+    auto req = drogon::HttpRequest::newHttpRequest();
+    req->setPath("/data/2.5/weather");
+    req->setParameter("q", city);
+    req->setParameter("appid", "<YOUR_API_KEY>"); // TODO: 
+    req->setParameter("units", "metric");
+
+    auto [result, response] = client->sendRequest(req);
+
+    if (result != drogon::ReqResult::Ok || !response)
+        return std::nullopt;
+
+    Json::CharReaderBuilder builder;
+    Json::Value root;
+    std::string errs;
+    const auto& body = response->body();
+    auto reader = builder.newCharReader();
+
+    if (!reader->parse(body.data(), body.data() + body.size(), &root, &errs)) {
+        return std::nullopt;
+    }
+
+    return root;
+
+    }
 
 void WeatherService::cacheWeather(const std::string& city, const Json::Value& data) {
-    auto db = app().getDbClient();
-    auto now = trantor::Date::now().toDbStringLocal();
+    // auto now = trantor::Date::now().toDbStringLocal();
 
-    db->execSqlAsync(
-        "INSERT INTO weather_cache (city, timestamp, json_data) VALUES ($1, $2, $3) "
-        "ON CONFLICT (city) DO UPDATE SET timestamp = $2, json_data = $3",
-        city, now, data.toStyledString());
+    // auto db = drogon::app().getDbClient();
+    // db->execSqlAsync(
+    //     "INSERT INTO weather_cache (city, timestamp, json_data) VALUES ($1, $2, $3) "
+    //     "ON CONFLICT (city) DO UPDATE SET timestamp = $2, json_data = $3",
+    //     city,
+    //     now,
+    //     data.toStyledString()
+    //     [](const drogon::orm::Result &) {
+    //         LOG_INFO << "Weather cache updated";
+    //     },
+    //     [](const drogon::orm::DrogonDbException &e) {
+    //         LOG_ERROR << "Weather cache update failed: " << e.base().what();
+    //     }
+    // );
 }
 
 std::optional<Json::Value> WeatherService::getCachedWeather(const std::string& city) {
