@@ -1,4 +1,4 @@
-#include "WeatherCacheController.h"
+#include "../include/WeatherCacheController.h"
 #include <models/WeatherCache.h>
 #include <drogon/orm/Mapper.h>
 

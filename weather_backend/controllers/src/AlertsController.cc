@@ -1,4 +1,4 @@
-#include "AlertsController.h"
+#include "../include/AlertsController.h"
 #include <models/Alerts.h>
 #include <drogon/orm/Mapper.h>
 
