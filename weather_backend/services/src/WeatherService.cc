@@ -56,23 +56,29 @@ std::optional<Json::Value> WeatherService::fetchWeather(const std::string &city)
     }
 
 void WeatherService::cacheWeather(const std::string& city, const Json::Value& data) {
-    // auto now = trantor::Date::now().toDbStringLocal();
-
+    // auto now = trantor::Date::now().toDbStringLocal();  // формат для SQL
     // auto db = drogon::app().getDbClient();
+
+    // //JSON to string
+    // std::string jsonStr = Json::FastWriter().write(data);
+
+    // using namespace drogon::orm;
+
     // db->execSqlAsync(
     //     "INSERT INTO weather_cache (city, timestamp, json_data) VALUES ($1, $2, $3) "
     //     "ON CONFLICT (city) DO UPDATE SET timestamp = $2, json_data = $3",
     //     city,
     //     now,
-    //     data.toStyledString()
-    //     [](const drogon::orm::Result &) {
-    //         LOG_INFO << "Weather cache updated";
-    //     },
-    //     [](const drogon::orm::DrogonDbException &e) {
-    //         LOG_ERROR << "Weather cache update failed: " << e.base().what();
-    //     }
+    //     jsonStr,
+    //     Callback([=](const Result &r) {
+    //         LOG_INFO << "Weather cache updated successfully";
+    //     }),
+    //     ExceptionCallback([](const DrogonDbException &e) {
+    //         LOG_ERROR << "Failed to update weather cache: " << e.base().what();
+    //     })
     // );
 }
+
 
 std::optional<Json::Value> WeatherService::getCachedWeather(const std::string& city) {
     auto db = app().getDbClient();
