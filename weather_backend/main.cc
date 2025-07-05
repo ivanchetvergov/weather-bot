@@ -1,40 +1,41 @@
 #include <drogon/drogon.h>
-#include <cppkafka/cppkafka.h>
-#include <thread>
-#include <memory>
+#include <iostream>
+#include <string>
+#include <memory>   // Для std::unique_ptr
+#include <functional> // Для std::bind
 
-void startKafkaConsumer() {
-    using namespace cppkafka;
+#include "KafkaConsumer.h" 
+#include "KafkaMessageService.h" 
 
-    Configuration config = {
-        {"metadata.broker.list", "localhost:9092"},
-        {"group.id", "drogon-consumer"},
-        {"auto.offset.reset", "earliest"}
-    };
+#include <locale>
+#include <clocale>
 
-    auto consumer = std::make_shared<Consumer>(config);
-    consumer->subscribe({"telegram-messages"});
 
-    std::thread([consumer]() {
-        while (true) {
-            auto msg = consumer->poll();
-            if (msg) {
-                std::cout << msg.get_payload() << std::endl;
-            }
-        }
-    }).detach();
-}
+const std::string KAFKA_BROKER_LIST = "localhost:9092";
+const std::string KAFKA_COMMANDS_TOPIC = "bot_commands";
+
+std::unique_ptr<KafkaConsumer> kafkaConsumerPtr;
+std::unique_ptr<KafkaMessageService> kafkaMessageServicePtr;
+
 
 int main() {
-    //Set HTTP listener address and port
+    std::setlocale(LC_ALL, ""); 
+
     drogon::app().addListener("0.0.0.0", 5555);
-    //Load config file
     drogon::app().loadConfigFile("../config.json");
 
-    startKafkaConsumer();
+    kafkaMessageServicePtr = std::make_unique<KafkaMessageService>();
 
-    //drogon::app().loadConfigFile("../config.yaml");
-    //Run HTTP framework,the method will block in the internal event loop
+    kafkaConsumerPtr = std::make_unique<KafkaConsumer>(KAFKA_BROKER_LIST, KAFKA_COMMANDS_TOPIC, "drogon-telegram-bot-consumer-group");
+
+    kafkaConsumerPtr->start(std::bind(&KafkaMessageService::processMessage, kafkaMessageServicePtr.get(), std::placeholders::_1));
+
     drogon::app().run();
+
+    if (kafkaConsumerPtr) {
+        kafkaConsumerPtr->stop();
+    }
+
+    std::cout << "Application gracefully stopped." << std::endl;
     return 0;
 }
