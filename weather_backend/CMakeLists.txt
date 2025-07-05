@@ -7,7 +7,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # collect all .cc files
 file(GLOB_RECURSE SRC_FILES
-    ${PROJECT_SOURCE_DIR}/controllers/src/*.cc
+    #${PROJECT_SOURCE_DIR}/controllers/src/*.cc
     ${PROJECT_SOURCE_DIR}/services/src/*.cc
     ${PROJECT_SOURCE_DIR}/models/*.cc
     ${PROJECT_SOURCE_DIR}/filters/*.cc
@@ -29,9 +29,21 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 )
 
 # drogon setup
-set(CMAKE_PREFIX_PATH "$ENV{HOME}/drogon-install")
-find_package(Drogon REQUIRED)
+set(CMAKE_PREFIX_PATH "/Users/ivan/prog/libs/drogon_installed")
+
+execute_process(COMMAND brew --prefix openssl@3 OUTPUT_VARIABLE OPENSSL_PREFIX OUTPUT_STRIP_TRAILING_WHITESPACE)
+execute_process(COMMAND brew --prefix c-ares OUTPUT_VARIABLE CARES_PREFIX OUTPUT_STRIP_TRAILING_WHITESPACE)
+execute_process(COMMAND brew --prefix postgresql@14 OUTPUT_VARIABLE PG_PREFIX OUTPUT_STRIP_TRAILING_WHITESPACE) 
+
+list(APPEND CMAKE_PREFIX_PATH
+    "${OPENSSL_PREFIX}"
+    "${CARES_PREFIX}"
+    "${PG_PREFIX}"
+)
+
+find_package(Drogon REQUIRED CONFIG)
 target_link_libraries(${PROJECT_NAME} PRIVATE Drogon::Drogon)
+
 
 # views
 drogon_create_views(${PROJECT_NAME}

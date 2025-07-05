@@ -1,6 +1,6 @@
 {
   "rdbms": "postgresql",
-  "host": "127.0.0.1",
+  "host": "localhost",
   "port": 5432,
   "dbname": "weather_bot",
   "schema": "public",

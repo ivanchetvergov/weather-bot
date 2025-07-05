@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.6.0
@@ -28,3 +27,54 @@ services:
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
     depends_on:
       - zookeeper
+
+# Добавляем PostgreSQL
+  db:
+    image: postgres:14-alpine # Используем Alpine-версию для меньшего размера
+    hostname: postgres_db
+    container_name: postgres_db
+    ports:
+      - "5432:5432" # Стандартный порт PostgreSQL
+    environment:
+      POSTGRES_DB: weather_bot
+      POSTGRES_USER: ivan
+      POSTGRES_PASSWORD: 1234
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ivan -d weather_bot"] 
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - postgres_data:/var/lib/postgresql/data # Сохраняем данные, чтобы они не терялись при перезапуске
+
+  # Добавляем PgAdmin
+  pgadmin:
+    image: dpage/pgadmin4
+    hostname: pgadmin
+    container_name: pgadmin
+    ports:
+      - "8081:80" # Доступ к PgAdmin по порту 8081
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ¡™£ # Email для входа
+      PGADMIN_DEFAULT_PASSWORD: Ivan2005 # Пароль для входа
+    depends_on:
+      db:
+        condition: service_healthy # Запускаем PgAdmin только после того, как БД готова
+
+  kafka-ui:
+      image: provectuslabs/kafka-ui:latest # Используем последний образ Kafka UI
+      container_name: kafka-ui
+      ports:
+        - "8080:8080" # UI будет доступен на localhost:8080
+      environment:
+        KAFKA_CLUSTERS_0_NAME: local-kafka # Имя твоего кластера в UI
+        KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: broker:29092 # Адрес Kafka брокера внутри Docker сети
+        # Если у тебя есть Zookeeper, можно добавить:
+        KAFKA_CLUSTERS_0_ZOOKEEPERCONNECT: zookeeper:2181
+        # Отключаем создание топиков для новых кластеров (можно включить, если нужно)
+        KAFKA_CLUSTERS_0_TOPICSTOCREATE: ""
+      depends_on:
+        - broker # Kafka UI зависит от запущенного брокера
+
+volumes:
+  postgres_data:
