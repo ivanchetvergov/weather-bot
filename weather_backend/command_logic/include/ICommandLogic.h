@@ -1,25 +1,25 @@
 #pragma once
 
+#include <nlohmann/json.hpp>
 #include <string>
 #include <memory>
-#include <nlohmann/json.hpp> 
-#include "IResponseSender.h" 
+#include <drogon/drogon.h>
+
+#include "KafkaResponseSender.h"
+
+using KafkaResponseSenderPtr = std::shared_ptr<KafkaResponseSender>;
+using std::string;
 
 class ICommandLogic {
 public:
     virtual ~ICommandLogic() = default;
 
-    // Метод для выполнения логики команды
-    // Принимает:
-    // - payload: полный JSON-объект Kafka-сообщения (для гибкости)
-    // - telegram_user_id: ID пользователя (общий для всех Telegram-команд)
-    // - message_text: текст сообщения (общий для всех Telegram-команд)
-    // - username, first_name: данные пользователя (если есть, могут быть пустыми)
-    virtual void execute(const nlohmann::json& payload,
+    virtual void execute(drogon::orm::DbClientPtr db_client, 
+                         const nlohmann::json& payload,
                          long long telegram_user_id,
-                         const std::string& message_text,
-                         const std::string& username,
-                         const std::string& first_name) = 0;
+                         const string& message_text,
+                         const string& username,
+                         const string& first_name) = 0;
 };
 
-using ICommandLogicPtr = std::shared_ptr<ICommandLogic>;
+using ICommandLogicPtr = shared_ptr<ICommandLogic>;

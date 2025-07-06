@@ -19,12 +19,12 @@ public:
     void stop();
 
 private:
-    cppkafka::Configuration config_; // Конфигурация Kafka
-    std::shared_ptr<cppkafka::Consumer> consumer_; // Объект Kafka Consumer
-    std::thread consumer_thread_; // Поток для цикла потребления сообщений
-    bool running_; // Флаг для управления циклом потока
-    MessageHandler message_handler_; // Колбэк-функция для обработки сообщений
+    cppkafka::Configuration config_; 
+    std::shared_ptr<cppkafka::Consumer> consumer_; 
+    std::thread consumer_thread_; 
+    bool running_; 
+    MessageHandler message_handler_; 
 
-    // Основной цикл потребления сообщений Kafka
     void consume_loop();
 };
+
