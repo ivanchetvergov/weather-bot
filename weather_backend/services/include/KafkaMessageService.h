@@ -10,6 +10,7 @@
 #include <functional>            
 
 #include "KafkaResponseSender.h"
+#include "TelegramUpdateParser.h"
 #include "ICommandLogic.h"   
 
 #include <drogon/orm/Mapper.h>
@@ -55,6 +56,7 @@ private:
         const std::string& message_text
     );
 
+    TelegramUpdateParser messageParser_;
     drogon::orm::DbClientPtr dbClient_;
     string dbClientName_;
     KafkaResponseSenderPtr responseSender_; 

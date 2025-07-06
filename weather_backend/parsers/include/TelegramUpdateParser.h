@@ -4,18 +4,9 @@
 #include <string>
 #include <iostream> 
 
+#include "DataTransferObjects.h"
+
 using namespace string;
-
-struct ParsedTelegramMessage {
-    long long telegram_user_id = 0;
-    string username;
-    string first_name;
-    string message_text;
-    string event_type;
-    nlohmann::json original_payload; 
-
-    bool is_valid = false; 
-};
 
 class TelegramUpdateParser {
 public:

@@ -63,103 +63,52 @@ void KafkaMessageService::registerCommandLogic(const string& command_name, IComm
 
 void KafkaMessageService::processMessage(const cppkafka::Message& msg) {
     using json = nlohmann::json;
-
-    string kafka_key_str;
-    const auto& temp_optional = msg.get_key();
-
-    if (temp_optional) { 
-        // !!! can be dangerous !!!
-        const cppkafka::Buffer* key_buffer_ptr = reinterpret_cast<const cppkafka::Buffer*>(&temp_optional);
-        const char* key_data = reinterpret_cast<const char*>(key_buffer_ptr->get_data());
-        size_t key_size = key_buffer_ptr->get_size();
-
-        kafka_key_str = string(key_data, key_size);
-        cout << "\n  Received message for Kafka Key: " << kafka_key_str << endl;
-    } else {
-        cout << "  Received message with no Kafka Key." << endl;
-        kafka_key_str = "unknown_kafka_key"; 
-    }
-    long long telegram_user_id = 0;
-    string username = "";
-    string first_name = "Unknown";
-    string message_text = "";
+    
     string payload_str = msg.get_payload();
+    ParsedTelegramMessage parsed_msg = messageParser_.parse(payload_str);
 
-    try {
-        json kafka_payload = json::parse(payload_str);
-
-        string event_type = "";
-        if (kafka_payload.contains("event_type") && kafka_payload["event_type"].is_string()) {
-            event_type = kafka_payload["event_type"].get<string>();
-            cout << "    Event Type: " << event_type << endl;
+    if (!parsed_msg.is_valid) {
+        cerr << "  ERROR: Failed to parse Kafka message payload. Skipping processing." << endl;
+        if (parsed_msg.telegram_user_id != 0 && responseSender_) {
+            responseSender_->sendTelegramMessage(parsed_msg.telegram_user_id, "Извините, не удалось понять ваше сообщение. Пожалуйста, попробуйте еще раз.");
         }
+        return;
+    }
 
-        if (event_type == "telegram_message") {
-            if (kafka_payload.contains("data") && kafka_payload["data"].is_object() &&
-                kafka_payload["data"].contains("message") && kafka_payload["data"]["message"].is_object()) {
+    cout << endl << "    Event Type: " << parsed_msg.event_type << endl;
 
-                const json& message_obj = kafka_payload["data"]["message"];
-                
-                if (message_obj.contains("from") && message_obj["from"].is_object() &&
-                    message_obj["from"].contains("id") && message_obj["from"]["id"].is_number_integer()) {
-                    telegram_user_id = message_obj["from"]["id"].get<long long>();
-                    cout << "      Telegram User ID: " << telegram_user_id << endl;
-                } else {
-                    cerr << "      WARNING: Telegram User ID not found in message payload!" << endl;
-                }
+    if (parsed_msg.event_type == "telegram_message") {
+        cout << "      Telegram User ID: " << parsed_msg.telegram_user_id << endl;
+        cout << "      Username: " << parsed_msg.username << endl;
+        cout << "      First Name: " << parsed_msg.first_name << endl;
+        cout << "      Message Text: " << parsed_msg.message_text << endl;
+        
+        handleUserAndMessage(
+            parsed_msg.telegram_user_id,
+            parsed_msg.username,
+            parsed_msg.first_name,
+            parsed_msg.message_text
+        );
 
-                if (message_obj.contains("from") && message_obj["from"].is_object() &&
-                    message_obj["from"].contains("username") && message_obj["from"]["username"].is_string()) {
-                    username = message_obj["from"]["username"].get<string>();
-                    cout << "      Username: " << username << endl;
-                } else {
-                    cout << "      Username not found." << endl;
-                }
-
-                if (message_obj.contains("from") && message_obj["from"].is_object() &&
-                    message_obj["from"].contains("first_name") && message_obj["from"]["first_name"].is_string()) {
-                    first_name = message_obj["from"]["first_name"].get<string>();
-                    cout << "      First Name: " << first_name << endl;
-                } else {
-                    cerr << "      WARNING: First Name not found for Telegram user!" << endl;
-                }
-
-                if (message_obj.contains("text") && message_obj["text"].is_string()) {
-                    message_text = message_obj["text"].get<string>();
-                    cout << "      Message Text: " << message_text << endl;
-
-                    if (message_text == "/start") {
-                        dispatchCommand("/start", kafka_payload, telegram_user_id, message_text, username, first_name);
-                    } else if (message_text == "/weather") {
-                        dispatchCommand("/weather", kafka_payload, telegram_user_id, message_text, username, first_name);
-                    } else {
-                        dispatchCommand("telegram_message_general", kafka_payload, telegram_user_id, message_text, username, first_name);
-                    }
-                } else {
-                    dispatchCommand("telegram_message_general", kafka_payload, telegram_user_id, message_text, username, first_name);
-                }
-
-            } else {
-                cerr << "    WARNING: 'data' or 'message' object missing/invalid in 'telegram_message' event. Dispatching to general handler." << endl;
-                dispatchCommand("telegram_message_general", kafka_payload, telegram_user_id, message_text, username, first_name);
-            }
+        if (parsed_msg.message_text.rfind("/start", 0) == 0) {
+            dispatchCommand("/start", parsed_msg.original_payload, parsed_msg.telegram_user_id, parsed_msg.message_text, parsed_msg.username, parsed_msg.first_name);
+        } else if (parsed_msg.message_text.rfind("/weather", 0) == 0) {
+            dispatchCommand("/weather", parsed_msg.original_payload, parsed_msg.telegram_user_id, parsed_msg.message_text, parsed_msg.username, parsed_msg.first_name);
+        } else {
+            dispatchCommand("telegram_message_general", parsed_msg.original_payload, parsed_msg.telegram_user_id, parsed_msg.message_text, parsed_msg.username, parsed_msg.first_name);
         }
-        else if (event_type == "/weather_api_response") {
-            dispatchCommand("/weather_api_response", kafka_payload, telegram_user_id, message_text, username, first_name);
+    }
+    else if (parsed_msg.event_type == "/weather_api_response") {
+        dispatchCommand("/weather_api_response", parsed_msg.original_payload, parsed_msg.telegram_user_id, parsed_msg.message_text, parsed_msg.username, parsed_msg.first_name);
+    }
+    else {
+        cout << "    --> Unknown or unhandled event type: " << parsed_msg.event_type << endl;
+        if (responseSender_ && parsed_msg.telegram_user_id != 0) {
+             responseSender_->sendTelegramMessage(parsed_msg.telegram_user_id, "Извините, я получил неизвестный тип события.");
         }
-        else {
-            cout << "    --> Unknown or unhandled event type: " << event_type << endl;
-            if (responseSender_ && telegram_user_id != 0) {
-                 responseSender_->sendTelegramMessage(telegram_user_id, "Извините, я получил неизвестный тип события.");
-            }
-        }
-
-    } catch (const json::parse_error& e) {
-        cerr << "  JSON parse error: " << e.what() << ". Payload: " << payload_str << endl;
-    } catch (const json::exception& e) {
-        cerr << "  JSON access error: " << e.what() << ". Payload: " << payload_str << endl;
     }
 }
+
 
 void KafkaMessageService::handleUserAndMessage(
     long long telegram_user_id,
