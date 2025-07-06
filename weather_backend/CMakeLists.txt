@@ -9,6 +9,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 file(GLOB_RECURSE SRC_FILES
     #${PROJECT_SOURCE_DIR}/controllers/src/*.cc
     ${PROJECT_SOURCE_DIR}/services/src/*.cc
+    ${PROJECT_SOURCE_DIR}/parsers/src/*.cc
     ${PROJECT_SOURCE_DIR}/kafka/src/*.cc
     ${PROJECT_SOURCE_DIR}/command_logic/src/*.cc
     ${PROJECT_SOURCE_DIR}/models/*.cc
@@ -26,6 +27,7 @@ add_executable(${PROJECT_NAME}
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${PROJECT_SOURCE_DIR}
     ${PROJECT_SOURCE_DIR}/controllers/include
+    ${PROJECT_SOURCE_DIR}/parsers/include
     ${PROJECT_SOURCE_DIR}/command_logic/include
     ${PROJECT_SOURCE_DIR}/services/include
     ${PROJECT_SOURCE_DIR}/kafka/include
