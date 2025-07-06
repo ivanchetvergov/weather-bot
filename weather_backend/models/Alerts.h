@@ -47,7 +47,7 @@ class Alerts
         static const std::string _id;
         static const std::string _user_id;
         static const std::string _city;
-        static const std::string _condition;
+        static const std::string _alert_condition;
         static const std::string _sent_at;
     };
 
@@ -125,14 +125,14 @@ class Alerts
     void setCity(const std::string &pCity) noexcept;
     void setCity(std::string &&pCity) noexcept;
 
-    /**  For column condition  */
-    ///Get the value of the column condition, returns the default value if the column is null
-    const std::string &getValueOfCondition() const noexcept;
+    /**  For column alert_condition  */
+    ///Get the value of the column alert_condition, returns the default value if the column is null
+    const std::string &getValueOfAlertCondition() const noexcept;
     ///Return a shared_ptr object pointing to the column const value, or an empty shared_ptr object if the column is null
-    const std::shared_ptr<std::string> &getCondition() const noexcept;
-    ///Set the value of the column condition
-    void setCondition(const std::string &pCondition) noexcept;
-    void setCondition(std::string &&pCondition) noexcept;
+    const std::shared_ptr<std::string> &getAlertCondition() const noexcept;
+    ///Set the value of the column alert_condition
+    void setAlertCondition(const std::string &pAlertCondition) noexcept;
+    void setAlertCondition(std::string &&pAlertCondition) noexcept;
 
     /**  For column sent_at  */
     ///Get the value of the column sent_at, returns the default value if the column is null
@@ -169,7 +169,7 @@ class Alerts
     std::shared_ptr<int32_t> id_;
     std::shared_ptr<int64_t> userId_;
     std::shared_ptr<std::string> city_;
-    std::shared_ptr<std::string> condition_;
+    std::shared_ptr<std::string> alertCondition_;
     std::shared_ptr<::trantor::Date> sentAt_;
     struct MetaData
     {
@@ -214,7 +214,7 @@ class Alerts
         }
         if(dirtyFlag_[3])
         {
-            sql += "condition,";
+            sql += "alert_condition,";
             ++parametersCount;
         }
         sql += "sent_at,";

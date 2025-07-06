@@ -4,26 +4,20 @@
 #include <nlohmann/json.hpp>   // Для nlohmann::json
 #include <string>              // Для std::string
 #include <iostream>            // Для std::cout, std::cerr
+#include <drogon/drogon.h>
 
-// Здесь можно было бы включить другие сервисы, если KafkaMessageService
-// будет вызывать их методы (например, WeatherService)
-// #include "services/include/WeatherService.h"
+using std::string;
 
 class KafkaMessageService {
 public:
-    // Конструктор
-    // Если этому сервису понадобятся зависимости (например, WeatherService),
-    // их можно передать сюда через DI (Dependency Injection).
     KafkaMessageService();
-    // KafkaMessageService(std::shared_ptr<WeatherService> weatherService);
-
-    // Метод для обработки одного Kafka-сообщения
     void processMessage(const cppkafka::Message& msg);
+    void set_DB(const char* name);
 
 private:
-    // Если есть зависимости, хранить их здесь
-    // std::shared_ptr<WeatherService> weatherService_;
+    void handleStartCommand(long long telegram_user_id, const string& username, const string& first_name);
+    void handleWeatherCommand(const nlohmann::json& payload, const string& rawPayload);
+    void handleTelegramMessage(const nlohmann::json& payload, const string& rawPayload);
 
-    void handleWeatherCommand(const nlohmann::json& payload, const std::string& rawPayload);
-    void handleTelegramMessage(const nlohmann::json& payload, const std::string& rawPayload);
+    drogon::orm::DbClientPtr dbClient_; 
 };

@@ -14,7 +14,7 @@
     "weather_cache"
   ],
   "relationships": {
-    "enabled": false,
+    "enabled": true,
     "items": []
   }
 }

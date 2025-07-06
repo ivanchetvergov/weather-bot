@@ -16,7 +16,7 @@ using namespace drogon_model::weather_bot;
 const std::string Alerts::Cols::_id = "\"id\"";
 const std::string Alerts::Cols::_user_id = "\"user_id\"";
 const std::string Alerts::Cols::_city = "\"city\"";
-const std::string Alerts::Cols::_condition = "\"condition\"";
+const std::string Alerts::Cols::_alert_condition = "\"alert_condition\"";
 const std::string Alerts::Cols::_sent_at = "\"sent_at\"";
 const std::string Alerts::primaryKeyName = "id";
 const bool Alerts::hasPrimaryKey = true;
@@ -26,7 +26,7 @@ const std::vector<typename Alerts::MetaData> Alerts::metaData_={
 {"id","int32_t","integer",4,1,1,1},
 {"user_id","int64_t","bigint",8,0,0,1},
 {"city","std::string","text",0,0,0,1},
-{"condition","std::string","text",0,0,0,1},
+{"alert_condition","std::string","text",0,0,0,1},
 {"sent_at","::trantor::Date","timestamp without time zone",0,0,0,0}
 };
 const std::string &Alerts::getColumnName(size_t index) noexcept(false)
@@ -50,9 +50,9 @@ Alerts::Alerts(const Row &r, const ssize_t indexOffset) noexcept
         {
             city_=std::make_shared<std::string>(r["city"].as<std::string>());
         }
-        if(!r["condition"].isNull())
+        if(!r["alert_condition"].isNull())
         {
-            condition_=std::make_shared<std::string>(r["condition"].as<std::string>());
+            alertCondition_=std::make_shared<std::string>(r["alert_condition"].as<std::string>());
         }
         if(!r["sent_at"].isNull())
         {
@@ -104,7 +104,7 @@ Alerts::Alerts(const Row &r, const ssize_t indexOffset) noexcept
         index = offset + 3;
         if(!r[index].isNull())
         {
-            condition_=std::make_shared<std::string>(r[index].as<std::string>());
+            alertCondition_=std::make_shared<std::string>(r[index].as<std::string>());
         }
         index = offset + 4;
         if(!r[index].isNull())
@@ -169,7 +169,7 @@ Alerts::Alerts(const Json::Value &pJson, const std::vector<std::string> &pMasque
         dirtyFlag_[3] = true;
         if(!pJson[pMasqueradingVector[3]].isNull())
         {
-            condition_=std::make_shared<std::string>(pJson[pMasqueradingVector[3]].asString());
+            alertCondition_=std::make_shared<std::string>(pJson[pMasqueradingVector[3]].asString());
         }
     }
     if(!pMasqueradingVector[4].empty() && pJson.isMember(pMasqueradingVector[4]))
@@ -226,12 +226,12 @@ Alerts::Alerts(const Json::Value &pJson) noexcept(false)
             city_=std::make_shared<std::string>(pJson["city"].asString());
         }
     }
-    if(pJson.isMember("condition"))
+    if(pJson.isMember("alert_condition"))
     {
         dirtyFlag_[3]=true;
-        if(!pJson["condition"].isNull())
+        if(!pJson["alert_condition"].isNull())
         {
-            condition_=std::make_shared<std::string>(pJson["condition"].asString());
+            alertCondition_=std::make_shared<std::string>(pJson["alert_condition"].asString());
         }
     }
     if(pJson.isMember("sent_at"))
@@ -298,7 +298,7 @@ void Alerts::updateByMasqueradedJson(const Json::Value &pJson,
         dirtyFlag_[3] = true;
         if(!pJson[pMasqueradingVector[3]].isNull())
         {
-            condition_=std::make_shared<std::string>(pJson[pMasqueradingVector[3]].asString());
+            alertCondition_=std::make_shared<std::string>(pJson[pMasqueradingVector[3]].asString());
         }
     }
     if(!pMasqueradingVector[4].empty() && pJson.isMember(pMasqueradingVector[4]))
@@ -354,12 +354,12 @@ void Alerts::updateByJson(const Json::Value &pJson) noexcept(false)
             city_=std::make_shared<std::string>(pJson["city"].asString());
         }
     }
-    if(pJson.isMember("condition"))
+    if(pJson.isMember("alert_condition"))
     {
         dirtyFlag_[3] = true;
-        if(!pJson["condition"].isNull())
+        if(!pJson["alert_condition"].isNull())
         {
-            condition_=std::make_shared<std::string>(pJson["condition"].asString());
+            alertCondition_=std::make_shared<std::string>(pJson["alert_condition"].asString());
         }
     }
     if(pJson.isMember("sent_at"))
@@ -451,25 +451,25 @@ void Alerts::setCity(std::string &&pCity) noexcept
     dirtyFlag_[2] = true;
 }
 
-const std::string &Alerts::getValueOfCondition() const noexcept
+const std::string &Alerts::getValueOfAlertCondition() const noexcept
 {
     static const std::string defaultValue = std::string();
-    if(condition_)
-        return *condition_;
+    if(alertCondition_)
+        return *alertCondition_;
     return defaultValue;
 }
-const std::shared_ptr<std::string> &Alerts::getCondition() const noexcept
+const std::shared_ptr<std::string> &Alerts::getAlertCondition() const noexcept
 {
-    return condition_;
+    return alertCondition_;
 }
-void Alerts::setCondition(const std::string &pCondition) noexcept
+void Alerts::setAlertCondition(const std::string &pAlertCondition) noexcept
 {
-    condition_ = std::make_shared<std::string>(pCondition);
+    alertCondition_ = std::make_shared<std::string>(pAlertCondition);
     dirtyFlag_[3] = true;
 }
-void Alerts::setCondition(std::string &&pCondition) noexcept
+void Alerts::setAlertCondition(std::string &&pAlertCondition) noexcept
 {
-    condition_ = std::make_shared<std::string>(std::move(pCondition));
+    alertCondition_ = std::make_shared<std::string>(std::move(pAlertCondition));
     dirtyFlag_[3] = true;
 }
 
@@ -504,7 +504,7 @@ const std::vector<std::string> &Alerts::insertColumns() noexcept
     static const std::vector<std::string> inCols={
         "user_id",
         "city",
-        "condition",
+        "alert_condition",
         "sent_at"
     };
     return inCols;
@@ -536,9 +536,9 @@ void Alerts::outputArgs(drogon::orm::internal::SqlBinder &binder) const
     }
     if(dirtyFlag_[3])
     {
-        if(getCondition())
+        if(getAlertCondition())
         {
-            binder << getValueOfCondition();
+            binder << getValueOfAlertCondition();
         }
         else
         {
@@ -606,9 +606,9 @@ void Alerts::updateArgs(drogon::orm::internal::SqlBinder &binder) const
     }
     if(dirtyFlag_[3])
     {
-        if(getCondition())
+        if(getAlertCondition())
         {
-            binder << getValueOfCondition();
+            binder << getValueOfAlertCondition();
         }
         else
         {
@@ -654,13 +654,13 @@ Json::Value Alerts::toJson() const
     {
         ret["city"]=Json::Value();
     }
-    if(getCondition())
+    if(getAlertCondition())
     {
-        ret["condition"]=getValueOfCondition();
+        ret["alert_condition"]=getValueOfAlertCondition();
     }
     else
     {
-        ret["condition"]=Json::Value();
+        ret["alert_condition"]=Json::Value();
     }
     if(getSentAt())
     {
@@ -719,9 +719,9 @@ Json::Value Alerts::toMasqueradedJson(
         }
         if(!pMasqueradingVector[3].empty())
         {
-            if(getCondition())
+            if(getAlertCondition())
             {
-                ret[pMasqueradingVector[3]]=getValueOfCondition();
+                ret[pMasqueradingVector[3]]=getValueOfAlertCondition();
             }
             else
             {
@@ -766,13 +766,13 @@ Json::Value Alerts::toMasqueradedJson(
     {
         ret["city"]=Json::Value();
     }
-    if(getCondition())
+    if(getAlertCondition())
     {
-        ret["condition"]=getValueOfCondition();
+        ret["alert_condition"]=getValueOfAlertCondition();
     }
     else
     {
-        ret["condition"]=Json::Value();
+        ret["alert_condition"]=Json::Value();
     }
     if(getSentAt())
     {
@@ -812,14 +812,14 @@ bool Alerts::validateJsonForCreation(const Json::Value &pJson, std::string &err)
         err="The city column cannot be null";
         return false;
     }
-    if(pJson.isMember("condition"))
+    if(pJson.isMember("alert_condition"))
     {
-        if(!validJsonOfField(3, "condition", pJson["condition"], err, true))
+        if(!validJsonOfField(3, "alert_condition", pJson["alert_condition"], err, true))
             return false;
     }
     else
     {
-        err="The condition column cannot be null";
+        err="The alert_condition column cannot be null";
         return false;
     }
     if(pJson.isMember("sent_at"))
@@ -924,9 +924,9 @@ bool Alerts::validateJsonForUpdate(const Json::Value &pJson, std::string &err)
         if(!validJsonOfField(2, "city", pJson["city"], err, false))
             return false;
     }
-    if(pJson.isMember("condition"))
+    if(pJson.isMember("alert_condition"))
     {
-        if(!validJsonOfField(3, "condition", pJson["condition"], err, false))
+        if(!validJsonOfField(3, "alert_condition", pJson["alert_condition"], err, false))
             return false;
     }
     if(pJson.isMember("sent_at"))
