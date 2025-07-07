@@ -5,7 +5,7 @@
 #include <functional>
 #include <fstream>
 #include <locale>
-#include <clocale>
+
 
 #include "KafkaConsumer.h"
 #include "KafkaMessageService.h"
@@ -13,7 +13,7 @@
 #include "KafkaProducer.h"
 
 #include "StartCommand.h"
-// #include "services/command_logic/include/WeatherCommandLogic.h"
+#include "WeatherCommandL.h"
 // #include "services/command_logic/include/TelegramMessageLogic.h"
 
 const std::string KAFKA_BROKER_LIST = "localhost:9092";
@@ -32,7 +32,7 @@ int main() {
     std::ifstream file(DROGON_CONFIG_PATH);
     if (!file.good()) {
         std::cerr << "ERROR: config.json not found at " << DROGON_CONFIG_PATH << std::endl;
-        return 1;
+        return 1;  
     }
     file.close();
 
@@ -44,16 +44,16 @@ int main() {
     kafkaProducerPtr = std::make_shared<KafkaProducer>(KAFKA_BROKER_LIST);    
 
     kafkaMessageServicePtr = std::make_unique<KafkaMessageService>();
-    kafkaMessageServicePtr->set_DBClientName("default");
 
     responseSenderPtr = std::make_shared<KafkaResponseSender>(kafkaProducerPtr, KAFKA_RESPONSES_TOPIC);
     kafkaMessageServicePtr->set_ResponseSender(responseSenderPtr);
 
-    std::shared_ptr<StartCommandLogic> startLogic = std::make_shared<StartCommandLogic>(responseSenderPtr); // <-- ИЗМЕНЕНО
+    std::shared_ptr<StartCommandLogic> startLogic = std::make_shared<StartCommandLogic>(responseSenderPtr); 
     kafkaMessageServicePtr->registerCommandLogic("/start", startLogic);
 
     kafkaConsumerPtr = std::make_unique<KafkaConsumer>(KAFKA_BROKER_LIST, KAFKA_COMMANDS_TOPIC, "drogon-telegram-bot-consumer-group");
     kafkaConsumerPtr->start(std::bind(&KafkaMessageService::processMessage, kafkaMessageServicePtr.get(), std::placeholders::_1));
+    //kafkaMessageService->set_OpenWeatherApiKey(openWeatherApiKey);
 
     drogon::app().run();
 
