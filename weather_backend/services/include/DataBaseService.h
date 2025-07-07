@@ -1,14 +1,25 @@
+//DataBaseService.h
 #pragma once
 
 #include <drogon/orm/DbClient.h>
+#include <drogon/orm/Exception.h> 
+#include <drogon/orm/Mapper.h>    
 #include <string>
 #include <memory>
 #include <future> 
 
+#include "DataTransferObjects.h"
 
-#include "DataTransferObject.h"
+#include "Users.h" 
+#include "Messages.h"
+#include "Subscriptions.h"
+#include "Alerts.h"
+#include "WeatherCache.h"
 
-using namespace std::future;
+using std::future;
+using std::promise;
+using std::string;
+using std::shared_ptr;
 
 class PgDbService {
 public:
@@ -22,6 +33,8 @@ public:
 
 private:
     drogon::orm::DbClientPtr dbClient_;
+    static future<void> handleDbClientNotAvailable(shared_ptr<promise<void>> prom);
+    static void attachErrorLogger(future<void>&& fut, const string& operation_name);
 };
 
-using PgDbServicePtr = std::shared_ptr<PgDbService>;
+using PgDbServicePtr = shared_ptr<PgDbService>;

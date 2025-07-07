@@ -4,18 +4,13 @@
 #include <nlohmann/json.hpp>   
 #include <string>       
 #include <iostream>           
-#include <drogon/drogon.h>    
 #include <map>                 
 #include <memory>  
-#include <functional>            
-
+         
 #include "KafkaResponseSender.h"
 #include "TelegramUpdateParser.h"
 #include "ICommandLogic.h"   
-
-#include <drogon/orm/Mapper.h>
-#include "Users.h"
-#include "Messages.h"
+#include "DataBaseService.h"
 
 using std::string;
 using std::map;
@@ -25,17 +20,15 @@ class KafkaMessageService {
 public:
     KafkaMessageService();
 
-    void set_OpenWeatherApiKey(const std::string& key);
-    void set_DBClientName(const char* name);
     void set_ResponseSender(KafkaResponseSenderPtr response_sender);
+    inline void set_DbService(PgDbServicePtr db_service);
+    inline void set_OpenWeatherApiKey(const string& key);
 
     void registerCommandLogic(const string& command_name, ICommandLogicPtr logic);
 
     void processMessage(const cppkafka::Message& msg);
 
 private:
-    drogon::orm::DbClientPtr getDbClient();
-
     void dispatchCommand(const string& command_name,
                          const nlohmann::json& payload,
                          long long telegram_user_id,
@@ -43,22 +36,13 @@ private:
                          const string& username,
                          const string& first_name);
 
-    void handleUserAndMessage(
-        long long telegram_user_id,
-        const std::string& username,
-        const std::string& first_name,
-        const std::string& message_text
-    );
-
-    void saveMessageToDb(
-        drogon::orm::DbClientPtr dbClient,
-        long long telegram_user_id,
-        const std::string& message_text
-    );
+    void handleTelegramMessage(const ParsedTelegramMessage& parsed_msg);
+    
+    string openWeatherApiKey_;
+    void handleWeatherApiResponse(const ParsedTelegramMessage& parsed_msg);
 
     TelegramUpdateParser messageParser_;
-    drogon::orm::DbClientPtr dbClient_;
-    string dbClientName_;
+    PgDbServicePtr dbService_;
     KafkaResponseSenderPtr responseSender_; 
     map<string, ICommandLogicPtr> commandLogics_;
 };

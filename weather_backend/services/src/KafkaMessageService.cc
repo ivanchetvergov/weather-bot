@@ -1,43 +1,15 @@
 #include "KafkaMessageService.h"
-#include <iostream>
-#include <string>
-#include <nlohmann/json.hpp>
-#include <boost/optional.hpp>
+
 #include <utility>
+#include <trantor/utils/Date.h>
+#include "DataTransferObjects.h"
 
 using namespace std;
-using namespace drogon_model::weather_backend;
+using namespace drogon_model::weather_bot;
+using nlohmann::json;
 
 KafkaMessageService::KafkaMessageService() {
     cout << "KafkaMessageService initialized." << endl;
-}
-
-void KafkaMessageService::set_DBClientName(const char* name) {
-    if (name && !dbClientName_.empty()) {
-        cerr << "WARNING: DB client name already set in KafkaMessageService. Overwriting." << endl;
-    }
-    if (name) {
-        dbClientName_ = name;
-        cout << "    KafkaMessageService: DB client name set to '" << dbClientName_ << "'." << endl;
-    } else {
-        cerr << "ERROR: Attempted to set null DB client name." << endl;
-    }
-}
-
-drogon::orm::DbClientPtr KafkaMessageService::getDbClient() {
-    if (!dbClient_) { 
-        if (dbClientName_.empty()) {
-            cerr << "ERROR: DB client name is not set in KafkaMessageService. Cannot get client." << endl;
-            return nullptr;
-        }
-        dbClient_ = drogon::app().getDbClient(dbClientName_);
-        if (!dbClient_) {
-            cerr << "ERROR: Failed to get DbClient '" << dbClientName_ << "' from Drogon app. Check config/startup." << endl;
-        } else {
-            cout << "    KafkaMessageService: Successfully obtained DbClient '" << dbClientName_ << "'." << endl;
-        }
-    }
-    return dbClient_;
 }
 
 void KafkaMessageService::set_ResponseSender(KafkaResponseSenderPtr response_sender) {
@@ -47,6 +19,15 @@ void KafkaMessageService::set_ResponseSender(KafkaResponseSenderPtr response_sen
     } else {
         cout << "    KafkaMessageService: Response sender already set (re-setting ignored)." << endl;
     }
+}
+
+void KafkaMessageService::set_DbService(PgDbServicePtr db_service) {
+    if (!db_service) {
+        std::cerr << "ERROR: Attempted to set null PgDbServicePtr in KafkaMessageService." << std::endl;
+        return;
+    }
+    dbService_ = db_service;
+    std::cout << "    KafkaMessageService: PgDbService set." << std::endl;
 }
 
 void KafkaMessageService::registerCommandLogic(const string& command_name, ICommandLogicPtr logic) {
@@ -61,8 +42,9 @@ void KafkaMessageService::registerCommandLogic(const string& command_name, IComm
     cout << "    KafkaMessageService: Registered logic for command: '" << command_name << "'" << endl;
 }
 
+void KafkaMessageService::set_OpenWeatherApiKey(const std::string& key) { openWeatherApiKey_ = key; }
+
 void KafkaMessageService::processMessage(const cppkafka::Message& msg) {
-    using json = nlohmann::json;
     
     string payload_str = msg.get_payload();
     ParsedTelegramMessage parsed_msg = messageParser_.parse(payload_str);
@@ -75,31 +57,13 @@ void KafkaMessageService::processMessage(const cppkafka::Message& msg) {
         return;
     }
 
-    cout << endl << "    Event Type: " << parsed_msg.event_type << endl;
+cout << endl << "    Event Type: " << parsed_msg.event_type << endl;
 
     if (parsed_msg.event_type == "telegram_message") {
-        cout << "      Telegram User ID: " << parsed_msg.telegram_user_id << endl;
-        cout << "      Username: " << parsed_msg.username << endl;
-        cout << "      First Name: " << parsed_msg.first_name << endl;
-        cout << "      Message Text: " << parsed_msg.message_text << endl;
-        
-        handleUserAndMessage(
-            parsed_msg.telegram_user_id,
-            parsed_msg.username,
-            parsed_msg.first_name,
-            parsed_msg.message_text
-        );
-
-        if (parsed_msg.message_text.rfind("/start", 0) == 0) {
-            dispatchCommand("/start", parsed_msg.original_payload, parsed_msg.telegram_user_id, parsed_msg.message_text, parsed_msg.username, parsed_msg.first_name);
-        } else if (parsed_msg.message_text.rfind("/weather", 0) == 0) {
-            dispatchCommand("/weather", parsed_msg.original_payload, parsed_msg.telegram_user_id, parsed_msg.message_text, parsed_msg.username, parsed_msg.first_name);
-        } else {
-            dispatchCommand("telegram_message_general", parsed_msg.original_payload, parsed_msg.telegram_user_id, parsed_msg.message_text, parsed_msg.username, parsed_msg.first_name);
-        }
+        handleTelegramMessage(parsed_msg);
     }
     else if (parsed_msg.event_type == "/weather_api_response") {
-        dispatchCommand("/weather_api_response", parsed_msg.original_payload, parsed_msg.telegram_user_id, parsed_msg.message_text, parsed_msg.username, parsed_msg.first_name);
+        handleWeatherApiResponse(parsed_msg);
     }
     else {
         cout << "    --> Unknown or unhandled event type: " << parsed_msg.event_type << endl;
@@ -109,95 +73,73 @@ void KafkaMessageService::processMessage(const cppkafka::Message& msg) {
     }
 }
 
+void KafkaMessageService::handleTelegramMessage(const ParsedTelegramMessage& parsed_msg) {
+    cout << "      Telegram User ID: " << parsed_msg.telegram_user_id << endl;
+    cout << "      Username: " << parsed_msg.username << endl;
+    cout << "      First Name: " << parsed_msg.first_name << endl;
+    cout << "      Message Text: " << parsed_msg.message_text << endl;
 
-void KafkaMessageService::handleUserAndMessage(
-    long long telegram_user_id,
-    const std::string& username,
-    const std::string& first_name,
-    const std::string& message_text
-) {
-    if (!dbClient_) {
-        dbClient_ = getDbClient();
-        if (!dbClient_) {
-             cerr << "ERROR: DbClient is null in handleUserAndMessage. Cannot save user/message." << endl;
-             return;
+    if (!dbService_) {
+        cerr << "ERROR: PgDbService is not set in KafkaMessageService. Cannot save user/message." << endl;
+        if (responseSender_ && parsed_msg.telegram_user_id != 0) {
+            responseSender_->sendTelegramMessage(parsed_msg.telegram_user_id, "Извините, произошла внутренняя ошибка базы данных.");
         }
+        return;
     }
 
-    Mapper<Users> userMapper(dbClient_);
-    userMapper.findByPrimaryKey(telegram_user_id,
-        [=](Users user) {
-            bool changed = false;
-            if (user.isUsernameUsed()) {
-                if (user.getValueOfUsername() != username) {
-                    user.setUsername(username);
-                    changed = true;
-                }
-            } else if (!username.empty()) {
-                user.setUsername(username);
-                changed = true;
-            }
+    UserData user_data;
+    user_data.telegram_user_id = parsed_msg.telegram_user_id;
+    user_data.username = parsed_msg.username;
+    user_data.first_name = parsed_msg.first_name;
 
-            if (user.getValueOfFirstName() != first_name) {
-                user.setFirstName(first_name);
-                changed = true;
-            }
+    dbService_->upsertUser(user_data);
 
-            if (changed) {
-                userMapper.update(user,
-                    [=](const size_t count) {
-                        cout << "User " << telegram_user_id << " updated." << endl;
-                    },
-                    [=](const DrogonDbException& e) {
-                        cerr << "Error updating user " << telegram_user_id << ": " << e.what() << endl;
-                    });
-            }
-            // Вызов нового общего метода для сохранения сообщения
-            saveMessageToDb(dbClient_, telegram_user_id, message_text);
-        },
-        [=](const DrogonDbException& e) {
-            if (e.base().code() == PGSQL_NOT_FOUND || e.base().code() == MYSQL_NOT_FOUND || string(e.what()).find("not found") != string::npos) {
-                Users newUser;
-                newUser.setId(telegram_user_id);
-                newUser.setFirstName(first_name);
-                if (!username.empty()) {
-                    newUser.setUsername(username);
-                } else {
-                    newUser.setUserNameAsNull();
-                }
+    MessageData message_data;
+    message_data.user_id = parsed_msg.telegram_user_id;
+    message_data.text = parsed_msg.message_text;
 
-                userMapper.insert(newUser,
-                    [=](Users insertedUser) {
-                        cout << "New user " << telegram_user_id << " inserted." << endl;
-                        // Вызов нового общего метода для сохранения сообщения
-                        saveMessageToDb(dbClient_, telegram_user_id, message_text);
-                    },
-                    [=](const DrogonDbException& e_insert) {
-                        cerr << "Error inserting new user " << telegram_user_id << ": " << e_insert.what() << endl;
-                    });
-            } else {
-                cerr << "Error finding user " << telegram_user_id << ": " << e.what() << endl;
-            }
-        });
+    dbService_->insertMessage(message_data);
+
+    if (parsed_msg.message_text.rfind("/start", 0) == 0) {
+        dispatchCommand("/start", parsed_msg.original_payload,
+                        parsed_msg.telegram_user_id, parsed_msg.message_text,
+                        parsed_msg.username, parsed_msg.first_name);
+    } else if (parsed_msg.message_text.rfind("/weather", 0) == 0) {
+        dispatchCommand("/weather", parsed_msg.original_payload,
+                        parsed_msg.telegram_user_id, parsed_msg.message_text,
+                        parsed_msg.username, parsed_msg.first_name);
+    } else {
+        dispatchCommand("telegram_message_general", parsed_msg.original_payload,
+                        parsed_msg.telegram_user_id, parsed_msg.message_text,
+                        parsed_msg.username, parsed_msg.first_name);
+    }
 }
 
-void KafkaMessageService::saveMessageToDb(
-    drogon::orm::DbClientPtr dbClient,
-    long long telegram_user_id,
-    const std::string& message_text
-) {
-    Mapper<Messages> messageMapper(dbClient);
-    Messages newMessage;
-    newMessage.setUserId(telegram_user_id);
-    newMessage.setText(message_text);
+void KafkaMessageService::handleWeatherApiResponse(const ParsedTelegramMessage& parsed_msg) {
+    cout << "      Processing Weather API Response for Telegram User ID: " << parsed_msg.telegram_user_id << endl;
 
-    messageMapper.insert(newMessage,
-        [=](Messages insertedMessage) {
-            cout << "Message for user " << telegram_user_id << " saved to DB." << endl;
-        },
-        [=](const DrogonDbException& e) {
-            cerr << "Error saving message for user " << telegram_user_id << ": " << e.what() << endl;
-        });
+    if (!dbService_) {
+        cerr << "ERROR: PgDbService is not set. Cannot process weather_api_response." << endl;
+        return;
+    }
+
+    if (parsed_msg.original_payload.count("city") &&
+        parsed_msg.original_payload.count("timestamp") &&
+        parsed_msg.original_payload.count("json_data"))
+    {
+        WeatherCacheData cache_data;
+        cache_data.city = parsed_msg.original_payload["city"].get<std::string>();
+        cache_data.timestamp = trantor::Date::fromDbString(parsed_msg.original_payload["timestamp"].get<std::string>());
+        cache_data.json_data = parsed_msg.original_payload["json_data"];
+
+        dbService_->upsertWeatherCache(cache_data); 
+    } else {
+        cerr << "WARNING: Missing 'city', 'timestamp', or 'json_data' in /weather_api_response payload. Cannot cache weather." << endl;
+    }
+
+    dispatchCommand("/weather_api_response", parsed_msg.original_payload,
+                        parsed_msg.telegram_user_id, parsed_msg.message_text,
+                        parsed_msg.username, parsed_msg.first_name);
 }
 
 void KafkaMessageService::dispatchCommand(const string& command_name,
@@ -209,7 +151,7 @@ void KafkaMessageService::dispatchCommand(const string& command_name,
     auto it = commandLogics_.find(command_name);
     if (it != commandLogics_.end() && it->second) {
         cout << "    KafkaMessageService: Dispatching to logic for '" << command_name << "'" << endl;
-        it->second->execute(getDbClient(),
+        it->second->execute(dbService_,
                             payload,
                             telegram_user_id,
                             message_text,
