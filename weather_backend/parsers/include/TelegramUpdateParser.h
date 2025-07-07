@@ -6,9 +6,8 @@
 
 #include "DataTransferObjects.h"
 
-using namespace string;
 
 class TelegramUpdateParser {
 public:
-    ParsedTelegramMessage parse(const string& json_payload);
+    ParsedTelegramMessage parse(const std::string& json_payload);
 };
