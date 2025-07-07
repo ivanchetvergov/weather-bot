@@ -14,19 +14,13 @@ public:
     WeatherCommandLogic(KafkaResponseSenderPtr sender, const string& openWeatherApiKey);
 
     void execute(
-        drogon::orm::DbClientPtr dbClient,
+        PgDbServicePtr db_service,
         const nlohmann::json& payload,
         long long telegram_user_id,
         const string& message_text,
         const string& username,
         const string& first_name
     ) override;
-
-    void saveMessageToDb(
-    drogon::orm::DbClientPtr dbClient,
-    long long telegram_user_id,
-    const std::string& message_text
-    )
 
 private:
     KafkaResponseSenderPtr responseSender_;

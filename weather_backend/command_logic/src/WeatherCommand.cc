@@ -1,7 +1,7 @@
-#include "WeatherCommandLogic.h"
+#include "WeatherCommand.h"
 #include <iostream>
 #include <iomanip> 
-#include <string_view> /
+#include <string_view> 
 
 
 using namespace std; 
@@ -13,7 +13,7 @@ WeatherCommandLogic::WeatherCommandLogic(KafkaResponseSenderPtr sender, const st
 }
 
 void WeatherCommandLogic::execute(
-    drogon::orm::DbClientPtr dbClient, 
+    PgDbServicePtr db_service,
     const nlohmann::json& payload,
     long long telegram_user_id,
     const string& message_text, 
@@ -22,15 +22,23 @@ void WeatherCommandLogic::execute(
 ) {
     cout << "WeatherCommandLogic: Executing for user " << telegram_user_id << " with message: " << message_text << endl;
 
+    if (db_service) {
+        MessageData msg_data;
+        msg_data.user_id = telegram_user_id;
+        msg_data.text = message_text;
+        db_service->insertMessage(msg_data); 
+    } else {
+        cerr << "WARNING: PgDbService is null in WeatherCommandLogic. Cannot save message to DB." << endl;
+    }
+
     size_t first_space = message_text.find(' ');
     string city;
     if (first_space != string::npos && first_space + 1 < message_text.length()) {
-        city = message_text.substr(first_space + 1); // Получаем все, что после "/weather "
-        // Удаляем лишние пробелы в начале/конце, если они есть (простая обрезка)
+        city = message_text.substr(first_space + 1);
         size_t start = city.find_first_not_of(" \t\n\r\f\v");
         size_t end = city.find_last_not_of(" \t\n\r\f\v");
         if (string::npos == start) {
-            city = ""; // Только пробелы
+            city = "";
         } else {
             city = city.substr(start, end - start + 1);
         }
@@ -45,49 +53,28 @@ void WeatherCommandLogic::execute(
     getWeatherData(city, telegram_user_id, message_text);
 }
 
-void WeatherCommandLogic::saveMessageToDb(
-    drogon::orm::DbClientPtr dbClient,
-    long long telegram_user_id,
-    const std::string& message_text
-) {
-    Mapper<drogon_model::weather_backend::Messages> messageMapper(dbClient);
-    drogon_model::weather_backend::Messages newMessage;
-    newMessage.setUserId(telegram_user_id);
-    newMessage.setText(message_text);
-
-    messageMapper.insert(newMessage,
-        [=](drogon_model::weather_backend::Messages insertedMessage) {
-            cout << "Message for user " << telegram_user_id << " saved to DB." << endl;
-        },
-        [=](const DrogonDbException& e) {
-            cerr << "Error saving message for user " << telegram_user_id << ": " << e.what() << endl;
-        });
-}
-
 void WeatherCommandLogic::getWeatherData(
     const string& city,
     long long telegram_user_id,
     const string& original_message_text
 ) {
-    // Создаем HTTP клиент
+
     auto client = drogon::HttpClient::newHttpClient("https://api.openweathermap.org");
     drogon::HttpRequestPtr req = drogon::HttpRequest::newHttpRequest();
 
-    // Формируем URL для запроса
-    // Используем std::string для параметров, чтобы избежать проблем с C-строками и URL-кодированием
+
     std::string path = "/data/2.5/weather";
     std::string query_params = "?q=" + city + "&appid=" + openWeatherApiKey_ + "&units=metric&lang=ru";
     req->setPath(path + query_params);
 
-    // Отправляем GET запрос
-    client->sendRequest(req, [=](drogon::ReqResult result, const drogon::HttpResponsePtr &resp) {
+    client->sendRequest(req, [=, this](drogon::ReqResult result, const drogon::HttpResponsePtr &resp) {
         if (result != drogon::ReqResult::Ok) {
-            cerr << "WeatherCommandLogic: HTTP request failed for city " << city << ": " << drogon::to</td>::string(result) << endl;
+            cerr << "WeatherCommandLogic: HTTP request failed for city " << city << ": " << endl;
             sendErrorMessage(telegram_user_id, "Извините, не удалось подключиться к сервису погоды. Попробуйте позже.");
             return;
         }
 
-        if (resp->statusCode() != drogon::k200Ok) {
+        if (resp->statusCode() != drogon::k200OK) {
             cerr << "WeatherCommandLogic: OpenWeatherMap API returned status " << resp->statusCode() << " for city " << city << endl;
             string error_msg = "Извините, не удалось получить данные о погоде для города '" + city + "'. Проверьте название города.";
             if (resp->statusCode() == drogon::k401Unauthorized) {
@@ -107,7 +94,7 @@ void WeatherCommandLogic::getWeatherData(
             double temp = 0.0;
             double feels_like = 0.0;
             int humidity = 0;
-            string city_name = city; // По умолчанию, если нет в ответе
+            string city_name = city; 
 
             if (data.contains("weather") && data["weather"].is_array() && !data["weather"].empty()) {
                 if (data["weather"][0].contains("description") && data["weather"][0]["description"].is_string()) {
