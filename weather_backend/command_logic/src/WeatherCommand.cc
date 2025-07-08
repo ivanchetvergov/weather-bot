@@ -6,27 +6,26 @@
 
 using namespace std; 
 
-WeatherCommandLogic::WeatherCommandLogic(KafkaResponseSenderPtr sender, const string& openWeatherApiKey)
+WeatherCommandLogic::WeatherCommandLogic(KafkaResponseSenderPtr sender, PgDbServicePtr dbService, const string& openWeatherApiKey)
     : responseSender_(sender),
+      dbService_(dbService),
       openWeatherApiKey_(openWeatherApiKey) {
     cout << "  WeatherCommandLogic initialized." << endl;
 }
 
-void WeatherCommandLogic::execute(
-    PgDbServicePtr db_service,
-    const nlohmann::json& payload,
-    long long telegram_user_id,
-    const string& message_text, 
-    const string& username,
-    const string& first_name
+void WeatherCommandLogic::execute(const nlohmann::json& payload,
+                                  long long telegram_user_id,
+                                  const string& message_text, 
+                                  const string& username,
+                                  const string& first_name
 ) {
     cout << "WeatherCommandLogic: Executing for user " << telegram_user_id << " with message: " << message_text << endl;
 
-    if (db_service) {
+    if (this->dbService_) { 
         MessageData msg_data;
         msg_data.user_id = telegram_user_id;
         msg_data.text = message_text;
-        db_service->insertMessage(msg_data); 
+        this->dbService_->insertMessage(msg_data);
     } else {
         cerr << "WARNING: PgDbService is null in WeatherCommandLogic. Cannot save message to DB." << endl;
     }

@@ -11,18 +11,18 @@ using std::string;
 
 class WeatherCommandLogic : public ICommandLogic {
 public:
-    WeatherCommandLogic(KafkaResponseSenderPtr sender, const string& openWeatherApiKey);
+    WeatherCommandLogic(KafkaResponseSenderPtr sender, 
+        PgDbServicePtr dbService, const std::string& openWeatherApiKey);
 
-    void execute(
-        PgDbServicePtr db_service,
-        const nlohmann::json& payload,
-        long long telegram_user_id,
-        const string& message_text,
-        const string& username,
-        const string& first_name
+    void execute(const nlohmann::json& payload,
+                 long long telegram_user_id,
+                 const string& message_text,
+                 const string& username,
+                 const string& first_name
     ) override;
 
 private:
+    PgDbServicePtr dbService_;
     KafkaResponseSenderPtr responseSender_;
     string openWeatherApiKey_;
 

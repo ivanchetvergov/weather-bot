@@ -10,15 +10,15 @@ using namespace std;
 class StartCommandLogic : public ICommandLogic {
 public:
 
-    StartCommandLogic(KafkaResponseSenderPtr response_sender);
+    StartCommandLogic(KafkaResponseSenderPtr response_sender, PgDbServicePtr dbService);
 
-    void execute(PgDbServicePtr db_service, 
-                const nlohmann::json& payload,
-                long long telegram_user_id,
-                const string& message_text,
-                const string& username,
-                const string& first_name) override;
+    void execute(const nlohmann::json& payload,
+                 long long telegram_user_id,
+                 const string& message_text,
+                 const string& username,
+                 const string& first_name) override;
 
 private:
     KafkaResponseSenderPtr responseSender_;
+    PgDbServicePtr dbService_;
 };

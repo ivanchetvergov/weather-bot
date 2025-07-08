@@ -42,8 +42,6 @@ void KafkaMessageService::registerCommandLogic(const string& command_name, IComm
     cout << "    KafkaMessageService: Registered logic for command: '" << command_name << "'" << endl;
 }
 
-void KafkaMessageService::set_OpenWeatherApiKey(const std::string& key) { openWeatherApiKey_ = key; }
-
 void KafkaMessageService::processMessage(const cppkafka::Message& msg) {
     
     string payload_str = msg.get_payload();
@@ -151,12 +149,8 @@ void KafkaMessageService::dispatchCommand(const string& command_name,
     auto it = commandLogics_.find(command_name);
     if (it != commandLogics_.end() && it->second) {
         cout << "    KafkaMessageService: Dispatching to logic for '" << command_name << "'" << endl;
-        it->second->execute(dbService_,
-                            payload,
-                            telegram_user_id,
-                            message_text,
-                            username,
-                            first_name);
+        it->second->execute(payload, telegram_user_id,
+                            message_text, username, first_name);
     } else {
         cerr << "ERROR: No logic registered for command: '" << command_name << "'" << endl;
         if (responseSender_ && telegram_user_id != 0) {

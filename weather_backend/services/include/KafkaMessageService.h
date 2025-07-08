@@ -21,8 +21,7 @@ public:
     KafkaMessageService();
 
     void set_ResponseSender(KafkaResponseSenderPtr response_sender);
-    inline void set_DbService(PgDbServicePtr db_service);
-    inline void set_OpenWeatherApiKey(const string& key);
+    void set_DbService(PgDbServicePtr db_service);
 
     void registerCommandLogic(const string& command_name, ICommandLogicPtr logic);
 
@@ -38,7 +37,6 @@ private:
 
     void handleTelegramMessage(const ParsedTelegramMessage& parsed_msg);
     
-    string openWeatherApiKey_;
     void handleWeatherApiResponse(const ParsedTelegramMessage& parsed_msg);
 
     TelegramUpdateParser messageParser_;

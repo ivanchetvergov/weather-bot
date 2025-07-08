@@ -1,3 +1,4 @@
+
 void KafkaMessageService::handleTelegramMessage(const nlohmann::json& payload, const string& rawPayload) {
     cout << "    --> This is a general Telegram message." << endl;
     if (!dbClient_) set_DB("default");
