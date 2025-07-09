@@ -46,6 +46,7 @@ class Messages
     {
         static const std::string _id;
         static const std::string _user_id;
+        static const std::string _command_text;
         static const std::string _text;
         static const std::string _created_at;
     };
@@ -115,6 +116,16 @@ class Messages
     ///Set the value of the column user_id
     void setUserId(const int64_t &pUserId) noexcept;
 
+    /**  For column command_text  */
+    ///Get the value of the column command_text, returns the default value if the column is null
+    const std::string &getValueOfCommandText() const noexcept;
+    ///Return a shared_ptr object pointing to the column const value, or an empty shared_ptr object if the column is null
+    const std::shared_ptr<std::string> &getCommandText() const noexcept;
+    ///Set the value of the column command_text
+    void setCommandText(const std::string &pCommandText) noexcept;
+    void setCommandText(std::string &&pCommandText) noexcept;
+    void setCommandTextToNull() noexcept;
+
     /**  For column text  */
     ///Get the value of the column text, returns the default value if the column is null
     const std::string &getValueOfText() const noexcept;
@@ -135,7 +146,7 @@ class Messages
     void setCreatedAtToNull() noexcept;
 
 
-    static size_t getColumnNumber() noexcept {  return 4;  }
+    static size_t getColumnNumber() noexcept {  return 5;  }
     static const std::string &getColumnName(size_t index) noexcept(false);
 
     Json::Value toJson() const;
@@ -159,6 +170,7 @@ class Messages
     void updateId(const uint64_t id);
     std::shared_ptr<int32_t> id_;
     std::shared_ptr<int64_t> userId_;
+    std::shared_ptr<std::string> commandText_;
     std::shared_ptr<std::string> text_;
     std::shared_ptr<::trantor::Date> createdAt_;
     struct MetaData
@@ -172,7 +184,7 @@ class Messages
         const bool notNull_;
     };
     static const std::vector<MetaData> metaData_;
-    bool dirtyFlag_[4]={ false };
+    bool dirtyFlag_[5]={ false };
   public:
     static const std::string &sqlForFindingByPrimaryKey()
     {
@@ -199,12 +211,17 @@ class Messages
         }
         if(dirtyFlag_[2])
         {
+            sql += "command_text,";
+            ++parametersCount;
+        }
+        if(dirtyFlag_[3])
+        {
             sql += "text,";
             ++parametersCount;
         }
         sql += "created_at,";
         ++parametersCount;
-        if(!dirtyFlag_[3])
+        if(!dirtyFlag_[4])
         {
             needSelection=true;
         }
@@ -232,6 +249,11 @@ class Messages
             sql.append(placeholderStr, n);
         }
         if(dirtyFlag_[3])
+        {
+            n = snprintf(placeholderStr,sizeof(placeholderStr),"$%d,",placeholder++);
+            sql.append(placeholderStr, n);
+        }
+        if(dirtyFlag_[4])
         {
             n = snprintf(placeholderStr,sizeof(placeholderStr),"$%d,",placeholder++);
             sql.append(placeholderStr, n);

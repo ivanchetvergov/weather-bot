@@ -7,7 +7,8 @@ from dotenv import load_dotenv
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler
 
 from .kafka_service import init_kafka, kafka_response_listener, close_kafka_consumer
-from .handlers import *
+from .command_handlers import *
+from .nlp_handler import nlp_message_handler, set_nlp_processor
 from .commands import set_telegram_commands
 
 from nlp_spacy.nlp_service import NlpService
@@ -37,6 +38,10 @@ if __name__ == "__main__":
 
     init_kafka(KAFKA_BROKERS, KAFKA_COMMANDS_TOPIC, KAFKA_RESPONSES_TOPIC, app)
 
+    nlp_processor = NlpService()
+    set_nlp_processor(nlp_processor)
+    print("NLP service initialized and passed to nlp_handler.")
+
     def run_kafka_listener_in_thread(app_instance, loop_to_use): 
         loop = asyncio.new_event_loop() 
         asyncio.set_event_loop(loop) 
@@ -52,14 +57,12 @@ if __name__ == "__main__":
     listener_thread.start()
     print("Kafka Response Listener starting in separate thread.")
 
-    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("weather", weather_command))
     app.add_handler(CommandHandler("forecast", forecast_command))
 
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, nlp_message_handler))
-    app.add_handler(MessageHandler(filters.COMMAND, handle_all_updates_to_kafka))
-    app.add_handler(CallbackQueryHandler(handle_all_updates_to_kafka))
 
     print("Telegram bot started and all messages sending to Kafka.")
     try:

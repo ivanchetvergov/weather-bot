@@ -10,7 +10,7 @@
 
 #include "AppServices.h" 
 
-const char* DROGON_CONFIG_PATH = "/Users/ivan/prog/weather_bot/weather_backend/config.json";
+const char* DROGON_CONFIG_PATH = "/Users/ivan/prog/weather_bot/weather_core/config.json";
 
 std::shared_ptr<AppServices> globalAppServices = nullptr;
 

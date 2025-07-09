@@ -15,6 +15,7 @@ using namespace drogon_model::weather_bot;
 
 const std::string Messages::Cols::_id = "\"id\"";
 const std::string Messages::Cols::_user_id = "\"user_id\"";
+const std::string Messages::Cols::_command_text = "\"command_text\"";
 const std::string Messages::Cols::_text = "\"text\"";
 const std::string Messages::Cols::_created_at = "\"created_at\"";
 const std::string Messages::primaryKeyName = "id";
@@ -24,6 +25,7 @@ const std::string Messages::tableName = "\"messages\"";
 const std::vector<typename Messages::MetaData> Messages::metaData_={
 {"id","int32_t","integer",4,1,1,1},
 {"user_id","int64_t","bigint",8,0,0,1},
+{"command_text","std::string","text",0,0,0,0},
 {"text","std::string","text",0,0,0,0},
 {"created_at","::trantor::Date","timestamp without time zone",0,0,0,0}
 };
@@ -43,6 +45,10 @@ Messages::Messages(const Row &r, const ssize_t indexOffset) noexcept
         if(!r["user_id"].isNull())
         {
             userId_=std::make_shared<int64_t>(r["user_id"].as<int64_t>());
+        }
+        if(!r["command_text"].isNull())
+        {
+            commandText_=std::make_shared<std::string>(r["command_text"].as<std::string>());
         }
         if(!r["text"].isNull())
         {
@@ -74,7 +80,7 @@ Messages::Messages(const Row &r, const ssize_t indexOffset) noexcept
     else
     {
         size_t offset = (size_t)indexOffset;
-        if(offset + 4 > r.size())
+        if(offset + 5 > r.size())
         {
             LOG_FATAL << "Invalid SQL result for this model";
             return;
@@ -93,9 +99,14 @@ Messages::Messages(const Row &r, const ssize_t indexOffset) noexcept
         index = offset + 2;
         if(!r[index].isNull())
         {
-            text_=std::make_shared<std::string>(r[index].as<std::string>());
+            commandText_=std::make_shared<std::string>(r[index].as<std::string>());
         }
         index = offset + 3;
+        if(!r[index].isNull())
+        {
+            text_=std::make_shared<std::string>(r[index].as<std::string>());
+        }
+        index = offset + 4;
         if(!r[index].isNull())
         {
             auto timeStr = r[index].as<std::string>();
@@ -124,7 +135,7 @@ Messages::Messages(const Row &r, const ssize_t indexOffset) noexcept
 
 Messages::Messages(const Json::Value &pJson, const std::vector<std::string> &pMasqueradingVector) noexcept(false)
 {
-    if(pMasqueradingVector.size() != 4)
+    if(pMasqueradingVector.size() != 5)
     {
         LOG_ERROR << "Bad masquerading vector";
         return;
@@ -150,7 +161,7 @@ Messages::Messages(const Json::Value &pJson, const std::vector<std::string> &pMa
         dirtyFlag_[2] = true;
         if(!pJson[pMasqueradingVector[2]].isNull())
         {
-            text_=std::make_shared<std::string>(pJson[pMasqueradingVector[2]].asString());
+            commandText_=std::make_shared<std::string>(pJson[pMasqueradingVector[2]].asString());
         }
     }
     if(!pMasqueradingVector[3].empty() && pJson.isMember(pMasqueradingVector[3]))
@@ -158,7 +169,15 @@ Messages::Messages(const Json::Value &pJson, const std::vector<std::string> &pMa
         dirtyFlag_[3] = true;
         if(!pJson[pMasqueradingVector[3]].isNull())
         {
-            auto timeStr = pJson[pMasqueradingVector[3]].asString();
+            text_=std::make_shared<std::string>(pJson[pMasqueradingVector[3]].asString());
+        }
+    }
+    if(!pMasqueradingVector[4].empty() && pJson.isMember(pMasqueradingVector[4]))
+    {
+        dirtyFlag_[4] = true;
+        if(!pJson[pMasqueradingVector[4]].isNull())
+        {
+            auto timeStr = pJson[pMasqueradingVector[4]].asString();
             struct tm stm;
             memset(&stm,0,sizeof(stm));
             auto p = strptime(timeStr.c_str(),"%Y-%m-%d %H:%M:%S",&stm);
@@ -199,9 +218,17 @@ Messages::Messages(const Json::Value &pJson) noexcept(false)
             userId_=std::make_shared<int64_t>((int64_t)pJson["user_id"].asInt64());
         }
     }
-    if(pJson.isMember("text"))
+    if(pJson.isMember("command_text"))
     {
         dirtyFlag_[2]=true;
+        if(!pJson["command_text"].isNull())
+        {
+            commandText_=std::make_shared<std::string>(pJson["command_text"].asString());
+        }
+    }
+    if(pJson.isMember("text"))
+    {
+        dirtyFlag_[3]=true;
         if(!pJson["text"].isNull())
         {
             text_=std::make_shared<std::string>(pJson["text"].asString());
@@ -209,7 +236,7 @@ Messages::Messages(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("created_at"))
     {
-        dirtyFlag_[3]=true;
+        dirtyFlag_[4]=true;
         if(!pJson["created_at"].isNull())
         {
             auto timeStr = pJson["created_at"].asString();
@@ -238,7 +265,7 @@ Messages::Messages(const Json::Value &pJson) noexcept(false)
 void Messages::updateByMasqueradedJson(const Json::Value &pJson,
                                             const std::vector<std::string> &pMasqueradingVector) noexcept(false)
 {
-    if(pMasqueradingVector.size() != 4)
+    if(pMasqueradingVector.size() != 5)
     {
         LOG_ERROR << "Bad masquerading vector";
         return;
@@ -263,7 +290,7 @@ void Messages::updateByMasqueradedJson(const Json::Value &pJson,
         dirtyFlag_[2] = true;
         if(!pJson[pMasqueradingVector[2]].isNull())
         {
-            text_=std::make_shared<std::string>(pJson[pMasqueradingVector[2]].asString());
+            commandText_=std::make_shared<std::string>(pJson[pMasqueradingVector[2]].asString());
         }
     }
     if(!pMasqueradingVector[3].empty() && pJson.isMember(pMasqueradingVector[3]))
@@ -271,7 +298,15 @@ void Messages::updateByMasqueradedJson(const Json::Value &pJson,
         dirtyFlag_[3] = true;
         if(!pJson[pMasqueradingVector[3]].isNull())
         {
-            auto timeStr = pJson[pMasqueradingVector[3]].asString();
+            text_=std::make_shared<std::string>(pJson[pMasqueradingVector[3]].asString());
+        }
+    }
+    if(!pMasqueradingVector[4].empty() && pJson.isMember(pMasqueradingVector[4]))
+    {
+        dirtyFlag_[4] = true;
+        if(!pJson[pMasqueradingVector[4]].isNull())
+        {
+            auto timeStr = pJson[pMasqueradingVector[4]].asString();
             struct tm stm;
             memset(&stm,0,sizeof(stm));
             auto p = strptime(timeStr.c_str(),"%Y-%m-%d %H:%M:%S",&stm);
@@ -311,9 +346,17 @@ void Messages::updateByJson(const Json::Value &pJson) noexcept(false)
             userId_=std::make_shared<int64_t>((int64_t)pJson["user_id"].asInt64());
         }
     }
-    if(pJson.isMember("text"))
+    if(pJson.isMember("command_text"))
     {
         dirtyFlag_[2] = true;
+        if(!pJson["command_text"].isNull())
+        {
+            commandText_=std::make_shared<std::string>(pJson["command_text"].asString());
+        }
+    }
+    if(pJson.isMember("text"))
+    {
+        dirtyFlag_[3] = true;
         if(!pJson["text"].isNull())
         {
             text_=std::make_shared<std::string>(pJson["text"].asString());
@@ -321,7 +364,7 @@ void Messages::updateByJson(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("created_at"))
     {
-        dirtyFlag_[3] = true;
+        dirtyFlag_[4] = true;
         if(!pJson["created_at"].isNull())
         {
             auto timeStr = pJson["created_at"].asString();
@@ -386,6 +429,33 @@ void Messages::setUserId(const int64_t &pUserId) noexcept
     dirtyFlag_[1] = true;
 }
 
+const std::string &Messages::getValueOfCommandText() const noexcept
+{
+    static const std::string defaultValue = std::string();
+    if(commandText_)
+        return *commandText_;
+    return defaultValue;
+}
+const std::shared_ptr<std::string> &Messages::getCommandText() const noexcept
+{
+    return commandText_;
+}
+void Messages::setCommandText(const std::string &pCommandText) noexcept
+{
+    commandText_ = std::make_shared<std::string>(pCommandText);
+    dirtyFlag_[2] = true;
+}
+void Messages::setCommandText(std::string &&pCommandText) noexcept
+{
+    commandText_ = std::make_shared<std::string>(std::move(pCommandText));
+    dirtyFlag_[2] = true;
+}
+void Messages::setCommandTextToNull() noexcept
+{
+    commandText_.reset();
+    dirtyFlag_[2] = true;
+}
+
 const std::string &Messages::getValueOfText() const noexcept
 {
     static const std::string defaultValue = std::string();
@@ -400,17 +470,17 @@ const std::shared_ptr<std::string> &Messages::getText() const noexcept
 void Messages::setText(const std::string &pText) noexcept
 {
     text_ = std::make_shared<std::string>(pText);
-    dirtyFlag_[2] = true;
+    dirtyFlag_[3] = true;
 }
 void Messages::setText(std::string &&pText) noexcept
 {
     text_ = std::make_shared<std::string>(std::move(pText));
-    dirtyFlag_[2] = true;
+    dirtyFlag_[3] = true;
 }
 void Messages::setTextToNull() noexcept
 {
     text_.reset();
-    dirtyFlag_[2] = true;
+    dirtyFlag_[3] = true;
 }
 
 const ::trantor::Date &Messages::getValueOfCreatedAt() const noexcept
@@ -427,12 +497,12 @@ const std::shared_ptr<::trantor::Date> &Messages::getCreatedAt() const noexcept
 void Messages::setCreatedAt(const ::trantor::Date &pCreatedAt) noexcept
 {
     createdAt_ = std::make_shared<::trantor::Date>(pCreatedAt);
-    dirtyFlag_[3] = true;
+    dirtyFlag_[4] = true;
 }
 void Messages::setCreatedAtToNull() noexcept
 {
     createdAt_.reset();
-    dirtyFlag_[3] = true;
+    dirtyFlag_[4] = true;
 }
 
 void Messages::updateId(const uint64_t id)
@@ -443,6 +513,7 @@ const std::vector<std::string> &Messages::insertColumns() noexcept
 {
     static const std::vector<std::string> inCols={
         "user_id",
+        "command_text",
         "text",
         "created_at"
     };
@@ -464,6 +535,17 @@ void Messages::outputArgs(drogon::orm::internal::SqlBinder &binder) const
     }
     if(dirtyFlag_[2])
     {
+        if(getCommandText())
+        {
+            binder << getValueOfCommandText();
+        }
+        else
+        {
+            binder << nullptr;
+        }
+    }
+    if(dirtyFlag_[3])
+    {
         if(getText())
         {
             binder << getValueOfText();
@@ -473,7 +555,7 @@ void Messages::outputArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[3])
+    if(dirtyFlag_[4])
     {
         if(getCreatedAt())
         {
@@ -501,6 +583,10 @@ const std::vector<std::string> Messages::updateColumns() const
     {
         ret.push_back(getColumnName(3));
     }
+    if(dirtyFlag_[4])
+    {
+        ret.push_back(getColumnName(4));
+    }
     return ret;
 }
 
@@ -519,6 +605,17 @@ void Messages::updateArgs(drogon::orm::internal::SqlBinder &binder) const
     }
     if(dirtyFlag_[2])
     {
+        if(getCommandText())
+        {
+            binder << getValueOfCommandText();
+        }
+        else
+        {
+            binder << nullptr;
+        }
+    }
+    if(dirtyFlag_[3])
+    {
         if(getText())
         {
             binder << getValueOfText();
@@ -528,7 +625,7 @@ void Messages::updateArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[3])
+    if(dirtyFlag_[4])
     {
         if(getCreatedAt())
         {
@@ -559,6 +656,14 @@ Json::Value Messages::toJson() const
     {
         ret["user_id"]=Json::Value();
     }
+    if(getCommandText())
+    {
+        ret["command_text"]=getValueOfCommandText();
+    }
+    else
+    {
+        ret["command_text"]=Json::Value();
+    }
     if(getText())
     {
         ret["text"]=getValueOfText();
@@ -587,7 +692,7 @@ Json::Value Messages::toMasqueradedJson(
     const std::vector<std::string> &pMasqueradingVector) const
 {
     Json::Value ret;
-    if(pMasqueradingVector.size() == 4)
+    if(pMasqueradingVector.size() == 5)
     {
         if(!pMasqueradingVector[0].empty())
         {
@@ -613,9 +718,9 @@ Json::Value Messages::toMasqueradedJson(
         }
         if(!pMasqueradingVector[2].empty())
         {
-            if(getText())
+            if(getCommandText())
             {
-                ret[pMasqueradingVector[2]]=getValueOfText();
+                ret[pMasqueradingVector[2]]=getValueOfCommandText();
             }
             else
             {
@@ -624,13 +729,24 @@ Json::Value Messages::toMasqueradedJson(
         }
         if(!pMasqueradingVector[3].empty())
         {
-            if(getCreatedAt())
+            if(getText())
             {
-                ret[pMasqueradingVector[3]]=getCreatedAt()->toDbStringLocal();
+                ret[pMasqueradingVector[3]]=getValueOfText();
             }
             else
             {
                 ret[pMasqueradingVector[3]]=Json::Value();
+            }
+        }
+        if(!pMasqueradingVector[4].empty())
+        {
+            if(getCreatedAt())
+            {
+                ret[pMasqueradingVector[4]]=getCreatedAt()->toDbStringLocal();
+            }
+            else
+            {
+                ret[pMasqueradingVector[4]]=Json::Value();
             }
         }
         return ret;
@@ -651,6 +767,14 @@ Json::Value Messages::toMasqueradedJson(
     else
     {
         ret["user_id"]=Json::Value();
+    }
+    if(getCommandText())
+    {
+        ret["command_text"]=getValueOfCommandText();
+    }
+    else
+    {
+        ret["command_text"]=Json::Value();
     }
     if(getText())
     {
@@ -688,14 +812,19 @@ bool Messages::validateJsonForCreation(const Json::Value &pJson, std::string &er
         err="The user_id column cannot be null";
         return false;
     }
+    if(pJson.isMember("command_text"))
+    {
+        if(!validJsonOfField(2, "command_text", pJson["command_text"], err, true))
+            return false;
+    }
     if(pJson.isMember("text"))
     {
-        if(!validJsonOfField(2, "text", pJson["text"], err, true))
+        if(!validJsonOfField(3, "text", pJson["text"], err, true))
             return false;
     }
     if(pJson.isMember("created_at"))
     {
-        if(!validJsonOfField(3, "created_at", pJson["created_at"], err, true))
+        if(!validJsonOfField(4, "created_at", pJson["created_at"], err, true))
             return false;
     }
     return true;
@@ -704,7 +833,7 @@ bool Messages::validateMasqueradedJsonForCreation(const Json::Value &pJson,
                                                   const std::vector<std::string> &pMasqueradingVector,
                                                   std::string &err)
 {
-    if(pMasqueradingVector.size() != 4)
+    if(pMasqueradingVector.size() != 5)
     {
         err = "Bad masquerading vector";
         return false;
@@ -747,6 +876,14 @@ bool Messages::validateMasqueradedJsonForCreation(const Json::Value &pJson,
                   return false;
           }
       }
+      if(!pMasqueradingVector[4].empty())
+      {
+          if(pJson.isMember(pMasqueradingVector[4]))
+          {
+              if(!validJsonOfField(4, pMasqueradingVector[4], pJson[pMasqueradingVector[4]], err, true))
+                  return false;
+          }
+      }
     }
     catch(const Json::LogicError &e)
     {
@@ -772,14 +909,19 @@ bool Messages::validateJsonForUpdate(const Json::Value &pJson, std::string &err)
         if(!validJsonOfField(1, "user_id", pJson["user_id"], err, false))
             return false;
     }
+    if(pJson.isMember("command_text"))
+    {
+        if(!validJsonOfField(2, "command_text", pJson["command_text"], err, false))
+            return false;
+    }
     if(pJson.isMember("text"))
     {
-        if(!validJsonOfField(2, "text", pJson["text"], err, false))
+        if(!validJsonOfField(3, "text", pJson["text"], err, false))
             return false;
     }
     if(pJson.isMember("created_at"))
     {
-        if(!validJsonOfField(3, "created_at", pJson["created_at"], err, false))
+        if(!validJsonOfField(4, "created_at", pJson["created_at"], err, false))
             return false;
     }
     return true;
@@ -788,7 +930,7 @@ bool Messages::validateMasqueradedJsonForUpdate(const Json::Value &pJson,
                                                 const std::vector<std::string> &pMasqueradingVector,
                                                 std::string &err)
 {
-    if(pMasqueradingVector.size() != 4)
+    if(pMasqueradingVector.size() != 5)
     {
         err = "Bad masquerading vector";
         return false;
@@ -817,6 +959,11 @@ bool Messages::validateMasqueradedJsonForUpdate(const Json::Value &pJson,
       if(!pMasqueradingVector[3].empty() && pJson.isMember(pMasqueradingVector[3]))
       {
           if(!validJsonOfField(3, pMasqueradingVector[3], pJson[pMasqueradingVector[3]], err, false))
+              return false;
+      }
+      if(!pMasqueradingVector[4].empty() && pJson.isMember(pMasqueradingVector[4]))
+      {
+          if(!validJsonOfField(4, pMasqueradingVector[4], pJson[pMasqueradingVector[4]], err, false))
               return false;
       }
     }
@@ -876,6 +1023,17 @@ bool Messages::validJsonOfField(size_t index,
             }
             break;
         case 3:
+            if(pJson.isNull())
+            {
+                return true;
+            }
+            if(!pJson.isString())
+            {
+                err="Type error in the "+fieldName+" field";
+                return false;
+            }
+            break;
+        case 4:
             if(pJson.isNull())
             {
                 return true;

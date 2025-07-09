@@ -32,17 +32,19 @@ class NlpService:
         text_lower = doc.text.lower()
 
         found_city = None
-        for city in self.known_cities:
-            if city.lower() in text_lower:
-                found_city = city
+        # 1. Попробуем найти город как SpaCy сущность (LOC/GPE)
+        for ent in doc.ents:
+            if (ent.label_ == "LOC" or ent.label_ == "GPE") and ent.text.lower() in self.known_cities:
+                found_city = ent.text 
                 break
         
+
         if not found_city:
-            for ent in doc.ents:
-                if ent.label_ == "LOC" or ent.label_ == "GPE":
-                    if ent.text.lower() in self.known_cities_lower:
-                        found_city = ent.text
-                        break
+            for city in KNOWN_CITIES: 
+                if city.lower() in text_lower:
+                    found_city = city 
+                    break
+        
         
         if found_city:
             entities["city"] = found_city

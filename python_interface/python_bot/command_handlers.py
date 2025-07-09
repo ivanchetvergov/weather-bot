@@ -8,13 +8,6 @@ from .commands import BOT_COMMANDS
 
 import json
 
-async def handle_all_updates_to_kafka(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    send_telegram_update_to_kafka(update)
-    if update.message:
-        await update.message.reply_text("Ваш запрос принят и обрабатывается...")
-    elif update.callback_query:
-        await update.callback_query.answer("Запрос принят")
-
 async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     openweather_api_key = context.bot_data.get("OPENWEATHER_API_KEY")
     if not openweather_api_key:
@@ -29,7 +22,7 @@ async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     send_telegram_update_to_kafka(update) 
     print(f"User {update.effective_user.id} requested weather for {update.message.text}. Request sent to Kafka.")
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     send_telegram_update_to_kafka(update)
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
