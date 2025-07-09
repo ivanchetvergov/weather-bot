@@ -26,22 +26,12 @@ async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await update.message.reply_text("Пожалуйста, укажите город. Пример: /weather Москва")
         return
 
-    log_data = {
-        "user_id": update.effective_user.id,
-        "username": update.effective_user.username,
-        "first_name": update.effective_user.first_name,
-        "command": "/weather",
-        "city": city,
-        "timestamp": update.message.date.isoformat(),
-    }
-    send_telegram_update_to_kafka(log_data)
-    print(f"User {update.effective_user.id} requested weather for {city}. Log sent to Kafka.")
+    send_telegram_update_to_kafka(update) 
+    print(f"User {update.effective_user.id} requested weather for {update.message.text}. Request sent to Kafka.")
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     send_telegram_update_to_kafka(update)
-    name = update.effective_user.first_name if update.effective_user else "друг"
-    await update.message.reply_text(f"Привет, {name}! Я твой погодный бот 🌦. Ваш запрос на старт отправлен.")
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     help_text = "Список доступных команд:\n\n"
@@ -50,3 +40,15 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     await update.message.reply_text(help_text)
     print(f"User {update.effective_user.id} requested /help. Sent command list.")
+
+async def forecast_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+
+    city = " ".join(context.args)
+
+    if not city:
+        await update.message.reply_text("Пожалуйста, укажите город для прогноза. Пример: /forecast Москва")
+        return
+
+    send_telegram_update_to_kafka(update) 
+    
+    print(f"User {update.effective_user.id} requested forecast for {update.message.text}. Request sent to Kafka.")

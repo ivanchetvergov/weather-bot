@@ -29,19 +29,21 @@ if __name__ == "__main__":
     app = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init_setup).build()
     app.bot_data["OPENWEATHER_API_KEY"] = OPENWEATHER_API_KEY
 
+    main_async_loop = asyncio.get_event_loop() 
+
     init_kafka(KAFKA_BROKERS, KAFKA_COMMANDS_TOPIC, KAFKA_RESPONSES_TOPIC, app)
 
-    def run_kafka_listener_in_thread(app_instance):
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+    def run_kafka_listener_in_thread(app_instance, loop_to_use): 
+        loop = asyncio.new_event_loop() 
+        asyncio.set_event_loop(loop) 
         try:
-            loop.run_until_complete(kafka_response_listener())
+            loop.run_until_complete(kafka_response_listener(loop_to_use)) 
         except asyncio.CancelledError:
             pass
         finally:
             loop.close()
 
-    listener_thread = threading.Thread(target=run_kafka_listener_in_thread, args=(app,))
+    listener_thread = threading.Thread(target=run_kafka_listener_in_thread, args=(app, main_async_loop)) 
     listener_thread.daemon = True
     listener_thread.start()
     print("Kafka Response Listener starting in separate thread.")
@@ -49,6 +51,7 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("weather", weather_command))
+    app.add_handler(CommandHandler("forecast", forecast_command))
 
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_all_updates_to_kafka))
     app.add_handler(MessageHandler(filters.COMMAND, handle_all_updates_to_kafka))
