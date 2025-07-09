@@ -15,7 +15,7 @@
     "listeners": [
         {
             "address": "0.0.0.0",
-            "port": 80,
+            "port": 8888,
             "https": false
         }
     ],
@@ -59,16 +59,6 @@
             }
         },
         {
-            "name": "AppServices", 
-            "config": {
-
-                "kafka_broker_list": "localhost:9092",
-                "kafka_commands_topic": "bot_commands",
-                "kafka_responses_topic": "bot_responses",
-                "openweather_api_key": "7e0ce6d92f1110a1fc0cad4064080fec"
-            }
-        },
-        {
             "name": "drogon::plugin::AccessLogger",
             "config": {
                 "use_spdlog": false,
@@ -81,5 +71,11 @@
             }
         }
     ],
+    "AppServices": { 
+        "kafka_broker_list": "localhost:9092",
+        "kafka_commands_topic": "bot_commands",
+        "kafka_responses_topic": "bot_responses",
+        "openweather_api_key": "7e0ce6d92f1110a1fc0cad4064080fec"
+    },
     "custom_config": {}
 }

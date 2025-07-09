@@ -35,7 +35,7 @@ file(GLOB_RECURSE SRC_FILES
     ${PROJECT_SOURCE_DIR}/command_logic/src/*.cc
     ${PROJECT_SOURCE_DIR}/models/*.cc
     ${PROJECT_SOURCE_DIR}/filters/*.cc
-    ${PROJECT_SOURCE_DIR}/plugins/*.cc
+    #${PROJECT_SOURCE_DIR}/plugins/*.cc
     ${PROJECT_SOURCE_DIR}AppServices.cc
 )
 
@@ -53,7 +53,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${PROJECT_SOURCE_DIR}/command_logic/include
     ${PROJECT_SOURCE_DIR}/services/include
     ${PROJECT_SOURCE_DIR}/kafka/include
-    ${PROJECT_SOURCE_DIR}/plugins
+    #${PROJECT_SOURCE_DIR}/plugins
     ${PROJECT_SOURCE_DIR}/models
 )
 
