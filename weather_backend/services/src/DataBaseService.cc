@@ -1,8 +1,9 @@
-//DataBaseService.cc
+// DataBaseService.cc
 #include "DataBaseService.h"
 
 #include <drogon/drogon.h>
 #include <iostream>
+#include <utility> // Для std::move
 
 using namespace drogon::orm;
 using namespace drogon_model::weather_bot;
@@ -14,37 +15,21 @@ PgDbService::PgDbService(drogon::orm::DbClientPtr db_client)
     }
 }
 
-future<void> PgDbService::handleDbClientNotAvailable(shared_ptr<promise<void>> prom) {
+future<void> PgDbService::handleDbClientNotAvailable(std::shared_ptr<std::promise<void>> prom) {
     std::cerr << "ERROR: Database client is not available." << std::endl;
     prom->set_exception(std::make_exception_ptr(drogon::orm::BrokenConnection("Database client is not available.")));
-    return prom->get_future();
+    return prom->get_future(); 
 }
 
-// Теперь принимаем std::future по rvalue ссылке, чтобы переместить его
-void PgDbService::attachErrorLogger(future<void>&& fut, const string& operation_name) {
-    try {
-        fut.get();
-    } catch (const DrogonDbException& e) {
-        std::cerr << "ERROR in DB operation (" << operation_name << "): " << e.base().what() << std::endl;
-        if (auto sqlError = dynamic_cast<const SqlError*>(&e.base())) {
-            std::cerr << "SQLSTATE: " << sqlError->sqlState() << ", Query: " << sqlError->query() << std::endl;
-        }
-    } catch (const std::exception& e) {
-        std::cerr << "UNEXPECTED ERROR in DB operation (" << operation_name << "): " << e.what() << std::endl;
-    }
-}
-
-// Users
 future<void> PgDbService::upsertUser(const UserData& user_data) {
-    auto prom = std::make_shared<promise<void>>();
-    future<void> fut = prom->get_future();
+    auto prom = std::make_shared<std::promise<void>>();
+    future<void> fut = prom->get_future(); 
 
     if (!dbClient_) {
         return handleDbClientNotAvailable(prom);
     }
 
     auto usersMapper = Mapper<Users>(dbClient_);
-    // Исправлено: Users::Cols::_id вместо Users::Cols::id
     usersMapper.findBy(Criteria(Users::Cols::_id, CompareOperator::EQ, user_data.telegram_user_id),
         [prom, user_data, usersMapper](const std::vector<Users>& users) mutable {
             if (!users.empty()) {
@@ -60,12 +45,18 @@ future<void> PgDbService::upsertUser(const UserData& user_data) {
                 }
 
                 if (needs_update) {
+                    // Обновляем существующего пользователя
                     usersMapper.update(user,
                         [prom](size_t updated_rows) {
-                            prom->set_value();
+                            prom->set_value(); // Успех
                         },
                         [prom](const DrogonDbException& e_update) {
-                            prom->set_exception(std::make_exception_ptr(e_update));
+                            // Логирование ошибки обновления
+                            std::cerr << "ERROR in DB update (upsertUser): " << e_update.base().what() << std::endl;
+                            if (auto sqlError = dynamic_cast<const SqlError*>(&e_update.base())) {
+                                std::cerr << "SQLSTATE: " << sqlError->sqlState() << ", Query: " << sqlError->query() << std::endl;
+                            }
+                            prom->set_exception(std::make_exception_ptr(e_update)); // Установка исключения
                         });
                 } else {
                     prom->set_value();
@@ -78,23 +69,31 @@ future<void> PgDbService::upsertUser(const UserData& user_data) {
 
                 usersMapper.insert(newUser,
                     [prom](Users insertedUser) {
-                        prom->set_value();
+                        prom->set_value(); // Успех
                     },
                     [prom](const DrogonDbException& e_insert) {
-                        prom->set_exception(std::make_exception_ptr(e_insert));
+                        // Логирование ошибки вставки
+                        std::cerr << "ERROR in DB insert (upsertUser): " << e_insert.base().what() << std::endl;
+                        if (auto sqlError = dynamic_cast<const SqlError*>(&e_insert.base())) {
+                            std::cerr << "SQLSTATE: " << sqlError->sqlState() << ", Query: " << sqlError->query() << std::endl;
+                        }
+                        prom->set_exception(std::make_exception_ptr(e_insert)); // Установка исключения
                     });
             }
         },
-        [prom](const DrogonDbException& e) {
-            prom->set_exception(std::make_exception_ptr(e));
+        [prom](const DrogonDbException& e_find) {
+            std::cerr << "ERROR in DB find (upsertUser): " << e_find.base().what() << std::endl;
+            if (auto sqlError = dynamic_cast<const SqlError*>(&e_find.base())) {
+                std::cerr << "SQLSTATE: " << sqlError->sqlState() << ", Query: " << sqlError->query() << std::endl;
+            }
+            prom->set_exception(std::make_exception_ptr(e_find)); // Установка исключения
         });
 
-    attachErrorLogger(std::move(fut), "upsertUser");
-    return prom->get_future();
+    return fut; 
 }
 
 future<void> PgDbService::insertMessage(const MessageData& message_data) {
-    auto prom = std::make_shared<promise<void>>();
+    auto prom = std::make_shared<std::promise<void>>();
     future<void> fut = prom->get_future();
 
     if (!dbClient_) {
@@ -108,20 +107,24 @@ future<void> PgDbService::insertMessage(const MessageData& message_data) {
 
     messagesMapper.insert(newMessage,
         [prom](Messages insertedMessage) {
-            prom->set_value();
+            prom->set_value(); // Успех
         },
-        [prom](const DrogonDbException& e) {
-            prom->set_exception(std::make_exception_ptr(e));
+        [prom](const DrogonDbException& e_insert) {
+            // Логирование ошибки вставки
+            std::cerr << "ERROR in DB insert (insertMessage): " << e_insert.base().what() << std::endl;
+            if (auto sqlError = dynamic_cast<const SqlError*>(&e_insert.base())) {
+                std::cerr << "SQLSTATE: " << sqlError->sqlState() << ", Query: " << sqlError->query() << std::endl;
+            }
+            prom->set_exception(std::make_exception_ptr(e_insert));
         });
 
-    attachErrorLogger(std::move(fut), "insertMessage");
-    return prom->get_future();
+    return fut; 
 }
 
 // Subscriptions
 future<void> PgDbService::insertSubscription(const SubscriptionData& sub_data) {
-    auto prom = std::make_shared<promise<void>>();
-    future<void> fut = prom->get_future();
+    auto prom = std::make_shared<std::promise<void>>();
+    future<void> fut = prom->get_future(); 
 
     if (!dbClient_) {
         return handleDbClientNotAvailable(prom);
@@ -155,23 +158,27 @@ future<void> PgDbService::insertSubscription(const SubscriptionData& sub_data) {
 
     subMapper.insert(newSub,
         [prom](Subscriptions insertedSub) {
-            prom->set_value();
+            prom->set_value(); // Успех
         },
-        [prom, user_id = sub_data.user_id, city = sub_data.city](const DrogonDbException& e) {
-            if (auto uniqueViolation = dynamic_cast<const UniqueViolation*>(&e.base())) {
-                 std::cerr << "Subscription for user " << user_id << " in city " << city << " already exists." << std::endl;
+        [prom, user_id = sub_data.user_id, city = sub_data.city](const DrogonDbException& e_insert) {
+            if (auto uniqueViolation = dynamic_cast<const UniqueViolation*>(&e_insert.base())) {
+                 std::cerr << "Subscription for user " << user_id << " in city " << city << " already exists (UniqueViolation)." << std::endl;
+            } else {
+                std::cerr << "ERROR in DB insert (insertSubscription): " << e_insert.base().what() << std::endl;
             }
-            prom->set_exception(std::make_exception_ptr(e));
+            if (auto sqlError = dynamic_cast<const SqlError*>(&e_insert.base())) {
+                std::cerr << "SQLSTATE: " << sqlError->sqlState() << ", Query: " << sqlError->query() << std::endl;
+            }
+            prom->set_exception(std::make_exception_ptr(e_insert)); // Установка исключения
         });
 
-    attachErrorLogger(std::move(fut), "insertSubscription");
-    return prom->get_future();
+    return fut;
 }
 
 // Alerts
 future<void> PgDbService::insertAlert(const AlertData& alert_data) {
-    auto prom = std::make_shared<promise<void>>();
-    future<void> fut = prom->get_future();
+    auto prom = std::make_shared<std::promise<void>>();
+    future<void> fut = prom->get_future(); 
 
     if (!dbClient_) {
         return handleDbClientNotAvailable(prom);
@@ -181,24 +188,26 @@ future<void> PgDbService::insertAlert(const AlertData& alert_data) {
     Alerts newAlert;
     newAlert.setUserId(alert_data.user_id);
     newAlert.setCity(alert_data.city);
-    // ИСПРАВЛЕНО: Используем setAlertCondition согласно Alerts.h
     newAlert.setAlertCondition(alert_data.condition);
 
     alertsMapper.insert(newAlert,
         [prom](Alerts insertedAlert) {
-            prom->set_value();
+            prom->set_value(); 
         },
-        [prom](const DrogonDbException& e) {
-            prom->set_exception(std::make_exception_ptr(e));
+        [prom](const DrogonDbException& e_insert) {
+            std::cerr << "ERROR in DB insert (insertAlert): " << e_insert.base().what() << std::endl;
+            if (auto sqlError = dynamic_cast<const SqlError*>(&e_insert.base())) {
+                std::cerr << "SQLSTATE: " << sqlError->sqlState() << ", Query: " << sqlError->query() << std::endl;
+            }
+            prom->set_exception(std::make_exception_ptr(e_insert));
         });
 
-    attachErrorLogger(std::move(fut), "insertAlert");
-    return prom->get_future();
+    return fut; 
 }
 
-// WeatherCache
+
 future<void> PgDbService::upsertWeatherCache(const WeatherCacheData& cache_data) {
-    auto prom = std::make_shared<promise<void>>();
+    auto prom = std::make_shared<std::promise<void>>();
     future<void> fut = prom->get_future();
 
     if (!dbClient_) {
@@ -218,7 +227,11 @@ future<void> PgDbService::upsertWeatherCache(const WeatherCacheData& cache_data)
                         prom->set_value();
                     },
                     [prom](const DrogonDbException& e_update) {
-                        prom->set_exception(std::make_exception_ptr(e_update));
+                        std::cerr << "ERROR in DB update (upsertWeatherCache): " << e_update.base().what() << std::endl;
+                        if (auto sqlError = dynamic_cast<const SqlError*>(&e_update.base())) {
+                            std::cerr << "SQLSTATE: " << sqlError->sqlState() << ", Query: " << sqlError->query() << std::endl;
+                        }
+                        prom->set_exception(std::make_exception_ptr(e_update)); 
                     });
             } else {
                 WeatherCache newCache;
@@ -228,17 +241,24 @@ future<void> PgDbService::upsertWeatherCache(const WeatherCacheData& cache_data)
 
                 cacheMapper.insert(newCache,
                     [prom](WeatherCache insertedCache) {
-                        prom->set_value();
+                        prom->set_value(); 
                     },
                     [prom](const DrogonDbException& e_insert) {
+                        std::cerr << "ERROR in DB insert (upsertWeatherCache): " << e_insert.base().what() << std::endl;
+                        if (auto sqlError = dynamic_cast<const SqlError*>(&e_insert.base())) {
+                            std::cerr << "SQLSTATE: " << sqlError->sqlState() << ", Query: " << sqlError->query() << std::endl;
+                        }
                         prom->set_exception(std::make_exception_ptr(e_insert));
                     });
             }
         },
-        [prom](const DrogonDbException& e) {
-            prom->set_exception(std::make_exception_ptr(e));
+        [prom](const DrogonDbException& e_find) {
+            std::cerr << "ERROR in DB find (upsertWeatherCache): " << e_find.base().what() << std::endl;
+            if (auto sqlError = dynamic_cast<const SqlError*>(&e_find.base())) {
+                std::cerr << "SQLSTATE: " << sqlError->sqlState() << ", Query: " << sqlError->query() << std::endl;
+            }
+            prom->set_exception(std::make_exception_ptr(e_find));
         });
 
-    attachErrorLogger(std::move(fut), "upsertWeatherCache");
-    return prom->get_future();
+    return fut; 
 }

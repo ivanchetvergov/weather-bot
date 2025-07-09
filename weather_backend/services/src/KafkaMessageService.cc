@@ -106,6 +106,10 @@ void KafkaMessageService::handleTelegramMessage(const ParsedTelegramMessage& par
         dispatchCommand("/weather", parsed_msg.original_payload,
                         parsed_msg.telegram_user_id, parsed_msg.message_text,
                         parsed_msg.username, parsed_msg.first_name);
+    } else if (parsed_msg.message_text.rfind("/forecast", 0) == 0) {
+        dispatchCommand("/forecast", parsed_msg.original_payload,
+                        parsed_msg.telegram_user_id, parsed_msg.message_text,
+                        parsed_msg.username, parsed_msg.first_name);
     } else {
         dispatchCommand("telegram_message_general", parsed_msg.original_payload,
                         parsed_msg.telegram_user_id, parsed_msg.message_text,
