@@ -29,7 +29,6 @@ async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     send_telegram_update_to_kafka(update) 
     print(f"User {update.effective_user.id} requested weather for {update.message.text}. Request sent to Kafka.")
 
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     send_telegram_update_to_kafka(update)
 

@@ -4,10 +4,10 @@ from spacy.matcher import Matcher
 from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
 
-from nlp_patterns import NLP_PATTERNS, KNOWN_CITIES, CONDITION_KEYWORDS, DAY_MAPPINGS
+from .nlp_patterns import NLP_PATTERNS, KNOWN_CITIES, CONDITION_KEYWORDS, DAY_MAPPINGS
 
 
-class NlpSevice: 
+class NlpService: 
     def __init__(self):
         try:
             self.nlp = spacy.load("ru_core_news_sm")

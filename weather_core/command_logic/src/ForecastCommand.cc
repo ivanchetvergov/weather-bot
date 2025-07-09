@@ -29,15 +29,6 @@ void ForecastCommandLogic::execute(const nlohmann::json& payload,
 ) {
     cout << "ForecastCommandLogic: Executing for user " << telegram_user_id << " with message: '" << message_text << "'" << endl;
 
-    if (this->dbService_) {
-        MessageData msg_data;
-        msg_data.user_id = telegram_user_id;
-        msg_data.text = message_text;
-        this->dbService_->insertMessage(msg_data);
-    } else {
-        cerr << "WARNING: PgDbService is null in ForecastCommandLogic. Cannot save message to DB." << endl;
-    }
-
     string city = OpenWeatherMapParser::extractCityFromMessage(message_text);
 
     if (city.empty()) {
@@ -60,8 +51,6 @@ void ForecastCommandLogic::getForecastData(
     std::string path = "/data/2.5/forecast";
     std::string query_params = "?q=" + city + "&appid=" + openWeatherApiKey_ + "&units=metric&lang=ru";
     req->setPath(path + query_params);
-
-    cout << "ForecastCommandLogic: Sending request to OpenWeatherMap for forecast: " << path << query_params << endl;
 
     client->sendRequest(req, [=, this](drogon::ReqResult result, const drogon::HttpResponsePtr &resp) {
         if (result != drogon::ReqResult::Ok) {

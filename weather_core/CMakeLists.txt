@@ -1,15 +1,15 @@
 cmake_minimum_required(VERSION 3.14)
-project(weather_backend LANGUAGES CXX)
+project(weather_core LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Создаем временный список для всех наших префиксных путей
-set(WEATHER_BACKEND_CMAKE_PREFIX_PATHS "")
+set(WEATHER_CORE_CMAKE_PREFIX_PATHS "")
 
 # 1. Добавляем путь к вашей установке Drogon в наш список ПЕРВЫМ!
-list(APPEND WEATHER_BACKEND_CMAKE_PREFIX_PATHS "/Users/ivan/prog/libs/drogon_installed")
+list(APPEND WEATHER_CORE_CMAKE_PREFIX_PATHS "/Users/ivan/prog/libs/drogon_installed")
 
 # 2. Собираем пути для Homebrew зависимостей
 execute_process(COMMAND brew --prefix openssl@3 OUTPUT_VARIABLE OPENSSL_PREFIX OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -17,14 +17,14 @@ execute_process(COMMAND brew --prefix c-ares OUTPUT_VARIABLE CARES_PREFIX OUTPUT
 execute_process(COMMAND brew --prefix postgresql@14 OUTPUT_VARIABLE PG_PREFIX OUTPUT_STRIP_TRAILING_WHITESPACE) 
 
 # 3. Добавляем пути Homebrew зависимостей в наш список
-list(APPEND WEATHER_BACKEND_CMAKE_PREFIX_PATHS
+list(APPEND WEATHER_CORE_CMAKE_PREFIX_PATHS
     "${OPENSSL_PREFIX}"
     "${CARES_PREFIX}"
     "${PG_PREFIX}"
 )
 
 # 4. И только теперь присваиваем весь собранный список CMAKE_PREFIX_PATH
-set(CMAKE_PREFIX_PATH "${WEATHER_BACKEND_CMAKE_PREFIX_PATHS}")
+set(CMAKE_PREFIX_PATH "${WEATHER_CORE_CMAKE_PREFIX_PATHS}")
 
 # collect all .cc files
 file(GLOB_RECURSE SRC_FILES

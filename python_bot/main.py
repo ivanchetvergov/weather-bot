@@ -10,6 +10,10 @@ from .kafka_service import init_kafka, kafka_response_listener, close_kafka_cons
 from .handlers import *
 from .commands import set_telegram_commands
 
+from nlp_spacy.nlp_service import NlpService
+
+nlp_processor: NlpService = None
+
 async def post_init_setup(application):
     await set_telegram_commands(application) 
 
@@ -53,7 +57,7 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("weather", weather_command))
     app.add_handler(CommandHandler("forecast", forecast_command))
 
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_all_updates_to_kafka))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, nlp_message_handler))
     app.add_handler(MessageHandler(filters.COMMAND, handle_all_updates_to_kafka))
     app.add_handler(CallbackQueryHandler(handle_all_updates_to_kafka))
 

@@ -23,15 +23,6 @@ void WeatherCommandLogic::execute(const nlohmann::json& payload,
 ) {
     cout << "WeatherCommandLogic: Executing for user " << telegram_user_id << " with message: " << message_text << endl;
 
-    if (this->dbService_) { 
-        MessageData msg_data;
-        msg_data.user_id = telegram_user_id;
-        msg_data.text = message_text;
-        this->dbService_->insertMessage(msg_data);
-    } else {
-        cerr << "WARNING: PgDbService is null in WeatherCommandLogic. Cannot save message to DB." << endl;
-    }
-
     string city = OpenWeatherMapParser::extractCityFromMessage(message_text);
 
     if (city.empty()) {
