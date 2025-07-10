@@ -57,7 +57,7 @@ void AppServices::initializeDbAndDependentServices()
             kafkaMessageServicePtr_->set_DbService(dbServicePtr_); 
             std::cout << "dbServicePtr_ set in KafkaMessageService." << std::endl;
         } else {
-             LOG_FATAL << "KafkaMessageService not initialized before trying to set DbService.";
+             LOG_FATAL << "KafkaMessageSmyCityCommandLogic_ervice not initialized before trying to set DbService.";
              drogon::app().quit();
              return;
         }
@@ -65,10 +65,12 @@ void AppServices::initializeDbAndDependentServices()
         startCommandLogic_ = std::make_shared<StartCommandLogic>(responseSenderPtr_, dbServicePtr_);
         weatherCommandLogic_ = std::make_shared<WeatherCommandLogic>(responseSenderPtr_, dbServicePtr_, openWeatherApiKey_);
         forecastCommandLogic_ = std::make_shared<ForecastCommandLogic>(responseSenderPtr_, dbServicePtr_, openWeatherApiKey_);  
+        myCityCommandLogic_ = std::make_shared<MyCityCommandLogic>(responseSenderPtr_, dbServicePtr_);  
 
         kafkaMessageServicePtr_->registerCommandLogic("/start", startCommandLogic_);
         kafkaMessageServicePtr_->registerCommandLogic("/weather", weatherCommandLogic_);
         kafkaMessageServicePtr_->registerCommandLogic("/forecast", forecastCommandLogic_);
+        kafkaMessageServicePtr_->registerCommandLogic("/mycity", myCityCommandLogic_);
 
         kafkaConsumerPtr_ = std::make_shared<KafkaConsumer>(kafkaBrokerList_, kafkaCommandsTopic_, "drogon-telegram-bot-consumer-group");
         

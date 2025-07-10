@@ -12,9 +12,11 @@
 #include "KafkaResponseSender.h"
 #include "KafkaProducer.h"
 #include "DataBaseService.h"
+
 #include "StartCommand.h"
 #include "WeatherCommand.h"
 #include "ForecastCommand.h"
+#include "MyCityCommand.h"
 
 class AppServices
 {
@@ -47,6 +49,7 @@ private:
     std::shared_ptr<ForecastCommandLogic> forecastCommandLogic_;
     std::shared_ptr<StartCommandLogic> startCommandLogic_;
     std::shared_ptr<WeatherCommandLogic> weatherCommandLogic_; 
+    std::shared_ptr<MyCityCommandLogic> myCityCommandLogic_;
 };
 
 
