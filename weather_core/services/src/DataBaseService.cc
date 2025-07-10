@@ -94,7 +94,7 @@ future<void> PgDbService::upsertUser(const UserData& user_data) {
 
 future<void> PgDbService::insertMessage(const MessageData& message_data) {
     auto prom = std::make_shared<std::promise<void>>();
-    future<void> fut = prom->get_future();
+    std::future<void> fut = prom->get_future();
 
     if (!dbClient_) {
         return handleDbClientNotAvailable(prom);
@@ -102,15 +102,16 @@ future<void> PgDbService::insertMessage(const MessageData& message_data) {
 
     auto messagesMapper = Mapper<Messages>(dbClient_);
     Messages newMessage;
+
     newMessage.setUserId(message_data.user_id);
+    newMessage.setCommandText(message_data.command_text); // <--- Используем новое поле
     newMessage.setText(message_data.text);
 
     messagesMapper.insert(newMessage,
         [prom](Messages insertedMessage) {
-            prom->set_value(); // Успех
+            prom->set_value(); 
         },
         [prom](const DrogonDbException& e_insert) {
-            // Логирование ошибки вставки
             std::cerr << "ERROR in DB insert (insertMessage): " << e_insert.base().what() << std::endl;
             if (auto sqlError = dynamic_cast<const SqlError*>(&e_insert.base())) {
                 std::cerr << "SQLSTATE: " << sqlError->sqlState() << ", Query: " << sqlError->query() << std::endl;

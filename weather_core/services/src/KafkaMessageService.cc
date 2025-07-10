@@ -55,7 +55,7 @@ void KafkaMessageService::processMessage(const cppkafka::Message& msg) {
         return;
     }
 
-cout << endl << "    Event Type: " << parsed_msg.event_type << endl;
+    cout << endl << "    Event Type: " << parsed_msg.event_type << endl;
 
     if (parsed_msg.event_type == "telegram_message") {
         handleTelegramMessage(parsed_msg);
@@ -75,12 +75,14 @@ void KafkaMessageService::handleTelegramMessage(const ParsedTelegramMessage& par
     cout << "      Telegram User ID: " << parsed_msg.telegram_user_id << endl;
     cout << "      Username: " << parsed_msg.username << endl;
     cout << "      First Name: " << parsed_msg.first_name << endl;
-    cout << "      Message Text: " << parsed_msg.message_text << endl;
+    cout << "      Original Text: " << parsed_msg.original_text << endl; 
+    cout << "      Command/Intent: " << parsed_msg.command_text << endl; 
 
     if (!dbService_) {
         cerr << "ERROR: PgDbService is not set in KafkaMessageService. Cannot save user/message." << endl;
         if (responseSender_ && parsed_msg.telegram_user_id != 0) {
-            responseSender_->sendTelegramMessage(parsed_msg.telegram_user_id, "Извините, произошла внутренняя ошибка базы данных.");
+            responseSender_->sendTelegramMessage(parsed_msg.telegram_user_id, 
+                "Извините, произошла внутренняя ошибка базы данных.");
         }
         return;
     }
@@ -90,33 +92,22 @@ void KafkaMessageService::handleTelegramMessage(const ParsedTelegramMessage& par
     user_data.username = parsed_msg.username;
     user_data.first_name = parsed_msg.first_name;
 
-    dbService_->upsertUser(user_data);
+    dbService_->upsertUser(user_data); 
+
 
     MessageData message_data;
     message_data.user_id = parsed_msg.telegram_user_id;
-    message_data.text = parsed_msg.message_text;
+    message_data.command_text = parsed_msg.command_text; 
+    message_data.text = parsed_msg.original_text;       
 
-    dbService_->insertMessage(message_data);
+    dbService_->insertMessage(message_data); 
 
-    if (parsed_msg.message_text.rfind("/start", 0) == 0) {
-        dispatchCommand("/start", parsed_msg.original_payload,
-                        parsed_msg.telegram_user_id, parsed_msg.message_text,
+    const string command_name = messageParser_.extractBaseCommand(parsed_msg.command_text);
+    dispatchCommand(command_name, parsed_msg.original_payload,
+                        parsed_msg.telegram_user_id, parsed_msg.original_text,
                         parsed_msg.username, parsed_msg.first_name);
-    } else if (parsed_msg.message_text.rfind("/weather", 0) == 0) {
-        dispatchCommand("/weather", parsed_msg.original_payload,
-                        parsed_msg.telegram_user_id, parsed_msg.message_text,
-                        parsed_msg.username, parsed_msg.first_name);
-    } else if (parsed_msg.message_text.rfind("/forecast", 0) == 0) {
-        dispatchCommand("/forecast", parsed_msg.original_payload,
-                        parsed_msg.telegram_user_id, parsed_msg.message_text,
-                        parsed_msg.username, parsed_msg.first_name);
-    } else {
-        dispatchCommand("telegram_message_general", parsed_msg.original_payload,
-                        parsed_msg.telegram_user_id, parsed_msg.message_text,
-                        parsed_msg.username, parsed_msg.first_name);
-    }
 }
-
+    
 void KafkaMessageService::handleWeatherApiResponse(const ParsedTelegramMessage& parsed_msg) {
     cout << "      Processing Weather API Response for Telegram User ID: " << parsed_msg.telegram_user_id << endl;
 
@@ -140,7 +131,7 @@ void KafkaMessageService::handleWeatherApiResponse(const ParsedTelegramMessage& 
     }
 
     dispatchCommand("/weather_api_response", parsed_msg.original_payload,
-                        parsed_msg.telegram_user_id, parsed_msg.message_text,
+                        parsed_msg.telegram_user_id, parsed_msg.original_text,
                         parsed_msg.username, parsed_msg.first_name);
 }
 

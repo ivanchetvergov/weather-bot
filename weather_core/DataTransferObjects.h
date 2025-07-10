@@ -15,6 +15,7 @@ struct UserData {
 
 struct MessageData {
     long long user_id;
+    string command_text;
     string text;
 };
 
@@ -40,12 +41,15 @@ struct WeatherCacheData {
 };
 
 struct ParsedTelegramMessage {
-    long long telegram_user_id = 0;
-    string username;
-    string first_name;
-    string message_text;
-    string event_type;
-    nlohmann::json original_payload; 
+    bool is_valid;
+    std::string event_type;
+    long long telegram_user_id;
+    std::string username;
+    std::string first_name;
+    long long chat_id; 
 
-    bool is_valid = false; 
+    std::string command_text; 
+    std::string original_text; 
+
+    nlohmann::json original_payload; 
 };
