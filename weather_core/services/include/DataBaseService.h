@@ -31,10 +31,13 @@ public:
     future<void> insertAlert(const AlertData& alert_data);
     future<void> upsertWeatherCache(const WeatherCacheData& cache_data);
 
+    future<std::optional<string>> getUserDefaultCity(long long telegram_user_id); 
+
 private:
     drogon::orm::DbClientPtr dbClient_;
     static future<void> handleDbClientNotAvailable(shared_ptr<promise<void>> prom);
     static void attachErrorLogger(future<void>&& fut, const string& operation_name);
+    void updateDefaultCityIfNeeded(drogon_model::weather_bot::Users& user, const std::optional<std::string>& new_default_city, bool& needs_update);
 };
 
 using PgDbServicePtr = shared_ptr<PgDbService>;

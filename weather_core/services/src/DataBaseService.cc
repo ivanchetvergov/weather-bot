@@ -21,6 +21,59 @@ future<void> PgDbService::handleDbClientNotAvailable(std::shared_ptr<std::promis
     return prom->get_future(); 
 }
 
+future<std::optional<std::string>> PgDbService::getUserDefaultCity(long long telegram_user_id) {
+    auto prom = std::make_shared<std::promise<std::optional<std::string>>>();
+    future<std::optional<std::string>> fut = prom->get_future();
+
+    if (!dbClient_) {
+        std::cerr << "ERROR: DbClient is null in getUserDefaultCity." << std::endl;
+        prom->set_exception(std::make_exception_ptr(drogon::orm::BrokenConnection("Database client not available.")));
+        return fut;
+    }
+
+    auto usersMapper = drogon::orm::Mapper<Users>(dbClient_);
+    usersMapper.findBy(drogon::orm::Criteria(Users::Cols::_id, drogon::orm::CompareOperator::EQ, telegram_user_id),
+        [prom](const std::vector<Users>& users) {
+            if (!users.empty()) {
+                auto default_city_ptr = users[0].getDefaultCity(); // Получаем shared_ptr<string>
+                if (default_city_ptr) { // Проверяем, не является ли shared_ptr пустым (т.е. значение не NULL)
+                    prom->set_value(std::optional<std::string>(*default_city_ptr)); 
+                } else { // Если shared_ptr пустой (значение NULL в БД)
+                    prom->set_value(std::nullopt);
+                }
+            } else {
+                prom->set_value(std::nullopt); // Пользователь не найден
+            }
+        },
+        [prom, telegram_user_id](const drogon::orm::DrogonDbException& e) {
+            std::cerr << "ERROR fetching user default city for ID " << telegram_user_id << ": " << e.base().what() << std::endl;
+            if (auto sqlError = dynamic_cast<const drogon::orm::SqlError*>(&e.base())) {
+                std::cerr << "SQLSTATE: " << sqlError->sqlState() << ", Query: " << sqlError->query() << std::endl;
+            }
+            prom->set_exception(std::make_exception_ptr(e));
+        });
+
+    return fut;
+}
+
+void PgDbService::updateDefaultCityIfNeeded(Users& user, const std::optional<std::string>& new_default_city, bool& needs_update) {
+
+    auto current_default_city_ptr = user.getDefaultCity(); 
+
+    if (new_default_city.has_value()) {
+
+        if (!current_default_city_ptr || *current_default_city_ptr != new_default_city.value()) {
+            user.setDefaultCity(new_default_city.value()); // Передаем std::string
+            needs_update = true;
+        }
+    } else { // Если new_default_city не имеет значения (пользователь хочет очистить город по умолчанию)
+        if (current_default_city_ptr) { // Если current_default_city_ptr НЕ пустой (т.е. в БД есть значение)
+            user.setDefaultCityToNull(); // Устанавливаем поле в NULL в БД
+            needs_update = true;
+        }
+    }
+}
+
 future<void> PgDbService::upsertUser(const UserData& user_data) {
     auto prom = std::make_shared<std::promise<void>>();
     future<void> fut = prom->get_future(); 
@@ -31,7 +84,7 @@ future<void> PgDbService::upsertUser(const UserData& user_data) {
 
     auto usersMapper = Mapper<Users>(dbClient_);
     usersMapper.findBy(Criteria(Users::Cols::_id, CompareOperator::EQ, user_data.telegram_user_id),
-        [prom, user_data, usersMapper](const std::vector<Users>& users) mutable {
+        [prom, user_data, usersMapper, this](const std::vector<Users>& users) mutable {
             if (!users.empty()) {
                 auto user = users[0];
                 bool needs_update = false;
@@ -43,6 +96,8 @@ future<void> PgDbService::upsertUser(const UserData& user_data) {
                     user.setFirstName(user_data.first_name);
                     needs_update = true;
                 }
+                
+                this->updateDefaultCityIfNeeded(user, user_data.default_city, needs_update);
 
                 if (needs_update) {
                     // Обновляем существующего пользователя
@@ -65,7 +120,7 @@ future<void> PgDbService::upsertUser(const UserData& user_data) {
                 Users newUser;
                 newUser.setId(user_data.telegram_user_id);
                 newUser.setUsername(user_data.username);
-                newUser.setFirstName(user_data.first_name);
+                newUser.setFirstName(user_data.first_name);                
 
                 usersMapper.insert(newUser,
                     [prom](Users insertedUser) {
