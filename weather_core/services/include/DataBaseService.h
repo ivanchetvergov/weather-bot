@@ -2,11 +2,12 @@
 #pragma once
 
 #include <drogon/orm/DbClient.h>
-#include <drogon/orm/Exception.h> 
+#include <drogon/orm/Exception.h>
 #include <drogon/orm/Mapper.h>    
 #include <string>
 #include <memory>
 #include <future> 
+#include <functional> //
 
 #include "DataTransferObjects.h"
 
@@ -16,28 +17,36 @@
 #include "Alerts.h"
 #include "WeatherCache.h"
 
-using std::future;
-using std::promise;
-using std::string;
-using std::shared_ptr;
-
 class PgDbService {
 public:
     PgDbService(drogon::orm::DbClientPtr db_client);
 
-    future<void> upsertUser(const UserData& user_data);
-    future<void> insertMessage(const MessageData& message_data);
-    future<void> insertSubscription(const SubscriptionData& sub_data);
-    future<void> insertAlert(const AlertData& alert_data);
-    future<void> upsertWeatherCache(const WeatherCacheData& cache_data);
+    std::future<void> upsertUser(const UserData& user_data);
+    std::future<void> insertMessage(const MessageData& message_data);
+    std::future<void> insertSubscription(const SubscriptionData& sub_data);
+    std::future<void> insertAlert(const AlertData& alert_data);
+    std::future<void> upsertWeatherCache(const WeatherCacheData& cache_data);
 
-    future<std::optional<string>> getUserDefaultCity(long long telegram_user_id); 
+    std::future<void> setUserDefaultCity(long long telegram_user_id,
+                                         const std::string& city);
+
+    void getUserDefaultCity(long long telegram_user_id,
+                            std::function<void(std::optional<std::string>)> callback,
+                            std::function<void(const std::exception&)> error_callback);
+
+    void setUserDefaultCity(long long telegram_user_id,
+                            const std::string& city,
+                            std::function<void()> success_callback,   
+                            std::function<void(const std::exception&)> error_callback); 
+
 
 private:
     drogon::orm::DbClientPtr dbClient_;
-    static future<void> handleDbClientNotAvailable(shared_ptr<promise<void>> prom);
-    static void attachErrorLogger(future<void>&& fut, const string& operation_name);
-    void updateDefaultCityIfNeeded(drogon_model::weather_bot::Users& user, const std::optional<std::string>& new_default_city, bool& needs_update);
+
+    static std::future<void> handleDbClientNotAvailable(std::shared_ptr<std::promise<void>> prom);
+
+    static void attachErrorLogger(std::future<void>&& fut, const std::string& operation_name);
+
 };
 
-using PgDbServicePtr = shared_ptr<PgDbService>;
+using PgDbServicePtr = std::shared_ptr<PgDbService>;

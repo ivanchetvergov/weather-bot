@@ -1,12 +1,20 @@
 // DataBaseService.cc
 #include "DataBaseService.h"
 
-#include <drogon/drogon.h>
+#include <drogon/drogon.h> // Оставим, если он нужен для других частей Drogon
 #include <iostream>
 #include <utility> // Для std::move
+#include <future> // Убедимся, что std::future и std::promise доступны здесь
 
-using namespace drogon::orm;
+using namespace drogon::orm; // Это поможет с DrogonDbException, Mapper, Criteria, CompareOperator, SqlError, UniqueViolation
 using namespace drogon_model::weather_bot;
+
+// Добавим using-директивы для std::, чтобы не писать std:: везде в этом файле
+using std::future;
+using std::promise;
+using std::shared_ptr;
+using std::string;
+using std::optional; // Если используешь optional без std::
 
 PgDbService::PgDbService(drogon::orm::DbClientPtr db_client)
     : dbClient_(std::move(db_client)) {
@@ -15,68 +23,109 @@ PgDbService::PgDbService(drogon::orm::DbClientPtr db_client)
     }
 }
 
-future<void> PgDbService::handleDbClientNotAvailable(std::shared_ptr<std::promise<void>> prom) {
+std::future<void> PgDbService::handleDbClientNotAvailable(std::shared_ptr<std::promise<void>> prom) {
     std::cerr << "ERROR: Database client is not available." << std::endl;
-    prom->set_exception(std::make_exception_ptr(drogon::orm::BrokenConnection("Database client is not available.")));
+    prom->set_exception(std::make_exception_ptr(std::runtime_error("Database client is not available.")));
     return prom->get_future(); 
 }
 
-future<std::optional<std::string>> PgDbService::getUserDefaultCity(long long telegram_user_id) {
-    auto prom = std::make_shared<std::promise<std::optional<std::string>>>();
-    future<std::optional<std::string>> fut = prom->get_future();
-
+void PgDbService::getUserDefaultCity(long long telegram_user_id,
+                                       std::function<void(std::optional<std::string>)> callback,
+                                       std::function<void(const std::exception&)> error_callback) { // Сигнатура теперь правильная
     if (!dbClient_) {
-        std::cerr << "ERROR: DbClient is null in getUserDefaultCity." << std::endl;
-        prom->set_exception(std::make_exception_ptr(drogon::orm::BrokenConnection("Database client not available.")));
-        return fut;
+        if (error_callback) {
+            error_callback(std::runtime_error("Database client not available")); 
+        }
+        return;
     }
 
-    auto usersMapper = drogon::orm::Mapper<Users>(dbClient_);
-    usersMapper.findBy(drogon::orm::Criteria(Users::Cols::_id, drogon::orm::CompareOperator::EQ, telegram_user_id),
-        [prom](const std::vector<Users>& users) {
+    auto usersMapper = Mapper<Users>(dbClient_);
+    usersMapper.findBy(Criteria(Users::Cols::_id, CompareOperator::EQ, telegram_user_id),
+        [callback, error_callback](const std::vector<Users>& users) {
             if (!users.empty()) {
-                auto default_city_ptr = users[0].getDefaultCity(); // Получаем shared_ptr<string>
-                if (default_city_ptr) { // Проверяем, не является ли shared_ptr пустым (т.е. значение не NULL)
-                    prom->set_value(std::optional<std::string>(*default_city_ptr)); 
-                } else { // Если shared_ptr пустой (значение NULL в БД)
-                    prom->set_value(std::nullopt);
+                auto user = users[0];
+                if (callback) {
+                    callback(user.getValueOfDefaultCity());
                 }
             } else {
-                prom->set_value(std::nullopt); // Пользователь не найден
+                if (callback) {
+                    callback(std::nullopt); 
+                }
             }
         },
-        [prom, telegram_user_id](const drogon::orm::DrogonDbException& e) {
-            std::cerr << "ERROR fetching user default city for ID " << telegram_user_id << ": " << e.base().what() << std::endl;
-            if (auto sqlError = dynamic_cast<const drogon::orm::SqlError*>(&e.base())) {
+        [error_callback](const DrogonDbException& e) { // Эта лямбда все еще принимает DrogonDbException от Drogon
+            std::cerr << "ERROR in DB find (getUserDefaultCity): " << e.base().what() << std::endl;
+            if (auto sqlError = dynamic_cast<const SqlError*>(&e.base())) {
                 std::cerr << "SQLSTATE: " << sqlError->sqlState() << ", Query: " << sqlError->query() << std::endl;
             }
-            prom->set_exception(std::make_exception_ptr(e));
+            if (error_callback) {
+                error_callback(std::runtime_error(e.base().what()));
+            }
         });
-
-    return fut;
 }
 
-void PgDbService::updateDefaultCityIfNeeded(Users& user, const std::optional<std::string>& new_default_city, bool& needs_update) {
-
-    auto current_default_city_ptr = user.getDefaultCity(); 
-
-    if (new_default_city.has_value()) {
-
-        if (!current_default_city_ptr || *current_default_city_ptr != new_default_city.value()) {
-            user.setDefaultCity(new_default_city.value()); // Передаем std::string
-            needs_update = true;
+void PgDbService::setUserDefaultCity(long long telegram_user_id,
+                                     const std::string& city,
+                                     std::function<void()> success_callback,
+                                     std::function<void(const std::exception&)> error_callback) {
+    if (!dbClient_) {
+        if (error_callback) {
+            error_callback(std::runtime_error("Database client not available"));
         }
-    } else { // Если new_default_city не имеет значения (пользователь хочет очистить город по умолчанию)
-        if (current_default_city_ptr) { // Если current_default_city_ptr НЕ пустой (т.е. в БД есть значение)
-            user.setDefaultCityToNull(); // Устанавливаем поле в NULL в БД
-            needs_update = true;
-        }
+        return;
     }
+
+    auto usersMapper = Mapper<Users>(dbClient_);
+    usersMapper.findBy(Criteria(Users::Cols::_id, CompareOperator::EQ, telegram_user_id),
+        [success_callback, error_callback, usersMapper, city, telegram_user_id](const std::vector<Users>& users) mutable {
+            if (!users.empty()) {
+                auto user = users[0];
+                if (!user.getDefaultCity() || *user.getDefaultCity() != city) {
+                    user.setDefaultCity(city);
+                    usersMapper.update(user,
+                        [success_callback](size_t updated_rows) {
+                            if (success_callback) {
+                                success_callback();
+                            }
+                        },
+                        [error_callback](const DrogonDbException& e_update) {
+                            std::cerr << "ERROR in DB update (setUserDefaultCity): " << e_update.base().what() << std::endl;
+                            if (auto sqlError = dynamic_cast<const SqlError*>(&e_update.base())) {
+                                std::cerr << "SQLSTATE: " << sqlError->sqlState() << ", Query: " << sqlError->query() << std::endl;
+                            }
+                            if (error_callback) {
+                                error_callback(std::runtime_error(e_update.base().what())); // Оборачиваем в runtime_error
+                            }
+                        });
+                } else {
+                    if (success_callback) {
+                        success_callback();
+                    }
+                }
+            } else {
+                // Пользователь не найден. Вызываем ошибку
+                std::cerr << "ERROR: User " << telegram_user_id << " not found for setting default city." << std::endl;
+                if (error_callback) {
+                    error_callback(std::runtime_error("User not found for setting default city."));
+                }
+            }
+        },
+        [error_callback](const DrogonDbException& e_find) {
+            std::cerr << "ERROR in DB find (setUserDefaultCity): " << e_find.base().what() << std::endl;
+            if (auto sqlError = dynamic_cast<const SqlError*>(&e_find.base())) {
+                std::cerr << "SQLSTATE: " << sqlError->sqlState() << ", Query: " << sqlError->query() << std::endl;
+            }
+            if (error_callback) {
+                error_callback(std::runtime_error(e_find.base().what())); // Оборачиваем в runtime_error
+            }
+        });
 }
 
-future<void> PgDbService::upsertUser(const UserData& user_data) {
+
+// Теперь явно указываем std::future
+std::future<void> PgDbService::upsertUser(const UserData& user_data) {
     auto prom = std::make_shared<std::promise<void>>();
-    future<void> fut = prom->get_future(); 
+    std::future<void> fut = prom->get_future(); 
 
     if (!dbClient_) {
         return handleDbClientNotAvailable(prom);
@@ -96,22 +145,18 @@ future<void> PgDbService::upsertUser(const UserData& user_data) {
                     user.setFirstName(user_data.first_name);
                     needs_update = true;
                 }
-                
-                this->updateDefaultCityIfNeeded(user, user_data.default_city, needs_update);
 
                 if (needs_update) {
-                    // Обновляем существующего пользователя
                     usersMapper.update(user,
                         [prom](size_t updated_rows) {
-                            prom->set_value(); // Успех
+                            prom->set_value(); 
                         },
                         [prom](const DrogonDbException& e_update) {
-                            // Логирование ошибки обновления
                             std::cerr << "ERROR in DB update (upsertUser): " << e_update.base().what() << std::endl;
                             if (auto sqlError = dynamic_cast<const SqlError*>(&e_update.base())) {
                                 std::cerr << "SQLSTATE: " << sqlError->sqlState() << ", Query: " << sqlError->query() << std::endl;
                             }
-                            prom->set_exception(std::make_exception_ptr(e_update)); // Установка исключения
+                            prom->set_exception(std::make_exception_ptr(e_update)); 
                         });
                 } else {
                     prom->set_value();
@@ -124,15 +169,14 @@ future<void> PgDbService::upsertUser(const UserData& user_data) {
 
                 usersMapper.insert(newUser,
                     [prom](Users insertedUser) {
-                        prom->set_value(); // Успех
+                        prom->set_value(); 
                     },
                     [prom](const DrogonDbException& e_insert) {
-                        // Логирование ошибки вставки
                         std::cerr << "ERROR in DB insert (upsertUser): " << e_insert.base().what() << std::endl;
                         if (auto sqlError = dynamic_cast<const SqlError*>(&e_insert.base())) {
                             std::cerr << "SQLSTATE: " << sqlError->sqlState() << ", Query: " << sqlError->query() << std::endl;
                         }
-                        prom->set_exception(std::make_exception_ptr(e_insert)); // Установка исключения
+                        prom->set_exception(std::make_exception_ptr(e_insert)); 
                     });
             }
         },
@@ -141,13 +185,14 @@ future<void> PgDbService::upsertUser(const UserData& user_data) {
             if (auto sqlError = dynamic_cast<const SqlError*>(&e_find.base())) {
                 std::cerr << "SQLSTATE: " << sqlError->sqlState() << ", Query: " << sqlError->query() << std::endl;
             }
-            prom->set_exception(std::make_exception_ptr(e_find)); // Установка исключения
+            prom->set_exception(std::make_exception_ptr(e_find)); 
         });
 
     return fut; 
 }
 
-future<void> PgDbService::insertMessage(const MessageData& message_data) {
+// Теперь явно указываем std::future
+std::future<void> PgDbService::insertMessage(const MessageData& message_data) {
     auto prom = std::make_shared<std::promise<void>>();
     std::future<void> fut = prom->get_future();
 
@@ -159,7 +204,7 @@ future<void> PgDbService::insertMessage(const MessageData& message_data) {
     Messages newMessage;
 
     newMessage.setUserId(message_data.user_id);
-    newMessage.setCommandText(message_data.command_text); // <--- Используем новое поле
+    newMessage.setCommandText(message_data.command_text); 
     newMessage.setText(message_data.text);
 
     messagesMapper.insert(newMessage,
@@ -178,9 +223,10 @@ future<void> PgDbService::insertMessage(const MessageData& message_data) {
 }
 
 // Subscriptions
-future<void> PgDbService::insertSubscription(const SubscriptionData& sub_data) {
+// Теперь явно указываем std::future
+std::future<void> PgDbService::insertSubscription(const SubscriptionData& sub_data) {
     auto prom = std::make_shared<std::promise<void>>();
-    future<void> fut = prom->get_future(); 
+    std::future<void> fut = prom->get_future(); 
 
     if (!dbClient_) {
         return handleDbClientNotAvailable(prom);
@@ -214,7 +260,7 @@ future<void> PgDbService::insertSubscription(const SubscriptionData& sub_data) {
 
     subMapper.insert(newSub,
         [prom](Subscriptions insertedSub) {
-            prom->set_value(); // Успех
+            prom->set_value(); 
         },
         [prom, user_id = sub_data.user_id, city = sub_data.city](const DrogonDbException& e_insert) {
             if (auto uniqueViolation = dynamic_cast<const UniqueViolation*>(&e_insert.base())) {
@@ -225,16 +271,17 @@ future<void> PgDbService::insertSubscription(const SubscriptionData& sub_data) {
             if (auto sqlError = dynamic_cast<const SqlError*>(&e_insert.base())) {
                 std::cerr << "SQLSTATE: " << sqlError->sqlState() << ", Query: " << sqlError->query() << std::endl;
             }
-            prom->set_exception(std::make_exception_ptr(e_insert)); // Установка исключения
+            prom->set_exception(std::make_exception_ptr(e_insert)); 
         });
 
     return fut;
 }
 
 // Alerts
-future<void> PgDbService::insertAlert(const AlertData& alert_data) {
+// Теперь явно указываем std::future
+std::future<void> PgDbService::insertAlert(const AlertData& alert_data) {
     auto prom = std::make_shared<std::promise<void>>();
-    future<void> fut = prom->get_future(); 
+    std::future<void> fut = prom->get_future(); 
 
     if (!dbClient_) {
         return handleDbClientNotAvailable(prom);
@@ -261,10 +308,10 @@ future<void> PgDbService::insertAlert(const AlertData& alert_data) {
     return fut; 
 }
 
-
-future<void> PgDbService::upsertWeatherCache(const WeatherCacheData& cache_data) {
+// Теперь явно указываем std::future
+std::future<void> PgDbService::upsertWeatherCache(const WeatherCacheData& cache_data) {
     auto prom = std::make_shared<std::promise<void>>();
-    future<void> fut = prom->get_future();
+    std::future<void> fut = prom->get_future();
 
     if (!dbClient_) {
         return handleDbClientNotAvailable(prom);
