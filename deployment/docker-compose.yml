@@ -62,7 +62,7 @@ services:
       retries: 5
     volumes:
       - postgres_data:/var/lib/postgresql/data # Сохраняем данные, чтобы они не терялись при перезапуске
-
+      - ./sql:/docker-entrypoint-initdb.d/
   # Добавляем PgAdmin
   pgadmin:
     image: dpage/pgadmin4
