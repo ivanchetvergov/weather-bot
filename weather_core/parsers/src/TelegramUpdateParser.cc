@@ -99,3 +99,18 @@ std::string TelegramUpdateParser::extractBaseCommand(const std::string& full_com
     }
     return full_command_text; // Если пробела нет, это уже сама команда
 }
+std::optional<std::string> TelegramUpdateParser::extractCityArgumentFromCommand(const std::string& full_command_text) {
+
+    size_t first_space_pos = full_command_text.find(' ');
+    if (first_space_pos == std::string::npos || first_space_pos == full_command_text.length() - 1) {
+        return std::nullopt; 
+    }
+    std::string city_arg = full_command_text.substr(first_space_pos + 1);
+
+    size_t start = city_arg.find_first_not_of(" \t\n\r\f\v");
+    size_t end = city_arg.find_last_not_of(" \t\n\r\f\v");
+    if (std::string::npos == start) return std::nullopt;
+    return city_arg.substr(start, end - start + 1);
+
+    return city_arg;
+}
