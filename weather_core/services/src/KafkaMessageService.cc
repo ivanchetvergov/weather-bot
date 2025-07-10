@@ -104,7 +104,7 @@ void KafkaMessageService::handleTelegramMessage(const ParsedTelegramMessage& par
 
     const string command_name = messageParser_.extractBaseCommand(parsed_msg.command_text);
     dispatchCommand(command_name, parsed_msg.original_payload,
-                        parsed_msg.telegram_user_id, parsed_msg.original_text,
+                        parsed_msg.telegram_user_id, parsed_msg.command_text,
                         parsed_msg.username, parsed_msg.first_name);
 }
     
