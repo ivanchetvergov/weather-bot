@@ -3,49 +3,60 @@
 from telegram import Update
 from telegram.ext import ContextTypes
 from .kafka_service import send_telegram_update_to_kafka
-from .commands import BOT_COMMANDS
+from .commands import BOT_COMMANDS # Предполагается, что это существует
+
+def _escape_markdown_v2(text: str) -> str:
+    """Escapes characters for MarkdownV2."""
+    escape_chars = r'_*[]()~`>#+-=|{}.!'
+    return ''.join(['\\' + char if char in escape_chars else char for char in text])
+
 
 async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     openweather_api_key = context.bot_data.get("OPENWEATHER_API_KEY")
     if not openweather_api_key:
         print("Error: OPENWEATHER_API_KEY not found in bot_data.")
+        await update.message.reply_text("Произошла ошибка: ключ API погоды не найден\\.\\nПожалуйста, свяжитесь с администратором\\.", parse_mode='MarkdownV2')
         return
 
-    city = " ".join(context.args)
-    if not city:
-        await update.message.reply_text("Пожалуйста, укажите город. Пример: /weather Москва")
-        return
+    await _send_telegram_command_to_kafka_with_original_text(update) 
+    print(f"User {update.effective_user.id} requested weather for '{update.message.text}'. Request sent to Kafka.")
 
-    await _send_unified_telegram_message_to_kafka(update, "weather") 
-    print(f"User {update.effective_user.id} requested weather for {update.message.text}. Request sent to Kafka.")
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await _send_unified_telegram_message_to_kafka(update, "start")
+    await _send_telegram_command_to_kafka_with_original_text(update)
+
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     help_text = "Список доступных команд:\n\n"
     for cmd in BOT_COMMANDS:
-        help_text += f"/{cmd.command} - {cmd.description}\n"
+        help_text += f"`\\/{_escape_markdown_v2(cmd.command)}` \\- {_escape_markdown_v2(cmd.description)}\n"
 
-    await update.message.reply_text(help_text)
+    await update.message.reply_text(help_text, parse_mode='MarkdownV2')
+    await _send_telegram_command_to_kafka_with_original_text(update)
     print(f"User {update.effective_user.id} requested /help. Sent command list.")
 
+
 async def forecast_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await _send_telegram_command_to_kafka_with_original_text(update) 
+    print(f"User {update.effective_user.id} requested forecast for '{update.message.text}'. Request sent to Kafka.")
 
-    city = " ".join(context.args)
 
-    if not city:
-        await update.message.reply_text("Пожалуйста, укажите город для прогноза. Пример: /forecast Москва")
+
+async def mycity_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    city_arg = " ".join(context.args)
+    if not city_arg:
+        await update.message.reply_text("Пожалуйста, укажите город по умолчанию\\. Пример: `/mycity Москва`", parse_mode='MarkdownV2')
         return
 
-    await _send_simple_telegram_command_to_kafka(update, "forecast") 
+    await _send_telegram_command_to_kafka_with_original_text(update) 
     
-    print(f"User {update.effective_user.id} requested forecast for {update.message.text}. Request sent to Kafka.")
+    print(f"User {update.effective_user.id} requested to set default city to '{city_arg}'. Request sent to Kafka.")
 
-async def _send_unified_telegram_message_to_kafka(update: Update, context: ContextTypes.DEFAULT_TYPE | None = None, is_command: bool = True) -> None:
+
+async def _send_telegram_command_to_kafka_with_original_text(update: Update) -> None:
     """
-    Формирует и отправляет унифицированное Kafka-сообщение для всех типов входящих сообщений Telegram.
-    Использует event_type="telegram_message" с дополнительными полями для команды/NLP.
+    Формирует и отправляет Kafka-сообщение в твоем унифицированном формате,
+    где 'command' и 'original_text' содержат полный текст сообщения Telegram.
     """
     if not update.message:
         print("Warning: Update without message. Skipping Kafka send.")
@@ -61,12 +72,6 @@ async def _send_unified_telegram_message_to_kafka(update: Update, context: Conte
 
     original_message_text = update.message.text if update.message.text else ""
     
-    command_or_intent = ""
-    if is_command and original_message_text.startswith('/'):
-        command_or_intent = original_message_text
-    elif not is_command:
-        command_or_intent = "nlp_text_query" 
-
     kafka_message_payload = {
         "event_type": "telegram_message", 
         "source": "telegram_bot",
@@ -77,11 +82,10 @@ async def _send_unified_telegram_message_to_kafka(update: Update, context: Conte
                 "first_name": first_name,
                 "chat_id": chat_id 
             },
-            "command": command_or_intent,     
+            "command": original_message_text,     
             "original_text": original_message_text 
-
         }
     }
     
     send_telegram_update_to_kafka(kafka_message_payload)
-    print(f"Unified Telegram message ('{command_or_intent}') from user {user_id} sent to Kafka.")
+    print(f"Unified Telegram message (command: '{original_message_text}', original: '{original_message_text}') from user {user_id} sent to Kafka.")

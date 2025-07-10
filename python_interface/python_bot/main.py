@@ -54,6 +54,7 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("weather", weather_command))
     app.add_handler(CommandHandler("forecast", forecast_command))
+    app.add_handler(CommandHandler("mycity", mycity_command))
 
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, nlp_text_handler))
 

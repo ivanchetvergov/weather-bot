@@ -125,7 +125,7 @@ async def kafka_response_listener(main_loop_for_telegram):
             parse_mode = response_data.get('parse_mode', None)
 
             if telegram_user_id and message_text:
-                print(f"Received response from Kafka for user: {telegram_user_id}: {message_text[:24]}...\n")
+                print(f"Received response from Kafka for user: {telegram_user_id}: {message_text[:18]}...\n")
                 try:
                     send_coroutine = kafka_app_instance.bot.send_message(
                         chat_id=telegram_user_id,
