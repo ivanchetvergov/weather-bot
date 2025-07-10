@@ -17,6 +17,7 @@ const std::string Users::Cols::_id = "\"id\"";
 const std::string Users::Cols::_username = "\"username\"";
 const std::string Users::Cols::_first_name = "\"first_name\"";
 const std::string Users::Cols::_created_at = "\"created_at\"";
+const std::string Users::Cols::_default_city = "\"default_city\"";
 const std::string Users::primaryKeyName = "id";
 const bool Users::hasPrimaryKey = true;
 const std::string Users::tableName = "\"users\"";
@@ -25,7 +26,8 @@ const std::vector<typename Users::MetaData> Users::metaData_={
 {"id","int64_t","bigint",8,0,1,1},
 {"username","std::string","text",0,0,0,0},
 {"first_name","std::string","text",0,0,0,1},
-{"created_at","::trantor::Date","timestamp without time zone",0,0,0,0}
+{"created_at","::trantor::Date","timestamp without time zone",0,0,0,0},
+{"default_city","std::string","text",0,0,0,0}
 };
 const std::string &Users::getColumnName(size_t index) noexcept(false)
 {
@@ -70,11 +72,15 @@ Users::Users(const Row &r, const ssize_t indexOffset) noexcept
                 createdAt_=std::make_shared<::trantor::Date>(t*1000000+decimalNum);
             }
         }
+        if(!r["default_city"].isNull())
+        {
+            defaultCity_=std::make_shared<std::string>(r["default_city"].as<std::string>());
+        }
     }
     else
     {
         size_t offset = (size_t)indexOffset;
-        if(offset + 4 > r.size())
+        if(offset + 5 > r.size())
         {
             LOG_FATAL << "Invalid SQL result for this model";
             return;
@@ -118,13 +124,18 @@ Users::Users(const Row &r, const ssize_t indexOffset) noexcept
                 createdAt_=std::make_shared<::trantor::Date>(t*1000000+decimalNum);
             }
         }
+        index = offset + 4;
+        if(!r[index].isNull())
+        {
+            defaultCity_=std::make_shared<std::string>(r[index].as<std::string>());
+        }
     }
 
 }
 
 Users::Users(const Json::Value &pJson, const std::vector<std::string> &pMasqueradingVector) noexcept(false)
 {
-    if(pMasqueradingVector.size() != 4)
+    if(pMasqueradingVector.size() != 5)
     {
         LOG_ERROR << "Bad masquerading vector";
         return;
@@ -177,6 +188,14 @@ Users::Users(const Json::Value &pJson, const std::vector<std::string> &pMasquera
                 }
                 createdAt_=std::make_shared<::trantor::Date>(t*1000000+decimalNum);
             }
+        }
+    }
+    if(!pMasqueradingVector[4].empty() && pJson.isMember(pMasqueradingVector[4]))
+    {
+        dirtyFlag_[4] = true;
+        if(!pJson[pMasqueradingVector[4]].isNull())
+        {
+            defaultCity_=std::make_shared<std::string>(pJson[pMasqueradingVector[4]].asString());
         }
     }
 }
@@ -233,12 +252,20 @@ Users::Users(const Json::Value &pJson) noexcept(false)
             }
         }
     }
+    if(pJson.isMember("default_city"))
+    {
+        dirtyFlag_[4]=true;
+        if(!pJson["default_city"].isNull())
+        {
+            defaultCity_=std::make_shared<std::string>(pJson["default_city"].asString());
+        }
+    }
 }
 
 void Users::updateByMasqueradedJson(const Json::Value &pJson,
                                             const std::vector<std::string> &pMasqueradingVector) noexcept(false)
 {
-    if(pMasqueradingVector.size() != 4)
+    if(pMasqueradingVector.size() != 5)
     {
         LOG_ERROR << "Bad masquerading vector";
         return;
@@ -292,6 +319,14 @@ void Users::updateByMasqueradedJson(const Json::Value &pJson,
             }
         }
     }
+    if(!pMasqueradingVector[4].empty() && pJson.isMember(pMasqueradingVector[4]))
+    {
+        dirtyFlag_[4] = true;
+        if(!pJson[pMasqueradingVector[4]].isNull())
+        {
+            defaultCity_=std::make_shared<std::string>(pJson[pMasqueradingVector[4]].asString());
+        }
+    }
 }
 
 void Users::updateByJson(const Json::Value &pJson) noexcept(false)
@@ -343,6 +378,14 @@ void Users::updateByJson(const Json::Value &pJson) noexcept(false)
                 }
                 createdAt_=std::make_shared<::trantor::Date>(t*1000000+decimalNum);
             }
+        }
+    }
+    if(pJson.isMember("default_city"))
+    {
+        dirtyFlag_[4] = true;
+        if(!pJson["default_city"].isNull())
+        {
+            defaultCity_=std::make_shared<std::string>(pJson["default_city"].asString());
         }
     }
 }
@@ -440,6 +483,33 @@ void Users::setCreatedAtToNull() noexcept
     dirtyFlag_[3] = true;
 }
 
+const std::string &Users::getValueOfDefaultCity() const noexcept
+{
+    static const std::string defaultValue = std::string();
+    if(defaultCity_)
+        return *defaultCity_;
+    return defaultValue;
+}
+const std::shared_ptr<std::string> &Users::getDefaultCity() const noexcept
+{
+    return defaultCity_;
+}
+void Users::setDefaultCity(const std::string &pDefaultCity) noexcept
+{
+    defaultCity_ = std::make_shared<std::string>(pDefaultCity);
+    dirtyFlag_[4] = true;
+}
+void Users::setDefaultCity(std::string &&pDefaultCity) noexcept
+{
+    defaultCity_ = std::make_shared<std::string>(std::move(pDefaultCity));
+    dirtyFlag_[4] = true;
+}
+void Users::setDefaultCityToNull() noexcept
+{
+    defaultCity_.reset();
+    dirtyFlag_[4] = true;
+}
+
 void Users::updateId(const uint64_t id)
 {
 }
@@ -450,7 +520,8 @@ const std::vector<std::string> &Users::insertColumns() noexcept
         "id",
         "username",
         "first_name",
-        "created_at"
+        "created_at",
+        "default_city"
     };
     return inCols;
 }
@@ -501,6 +572,17 @@ void Users::outputArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
+    if(dirtyFlag_[4])
+    {
+        if(getDefaultCity())
+        {
+            binder << getValueOfDefaultCity();
+        }
+        else
+        {
+            binder << nullptr;
+        }
+    }
 }
 
 const std::vector<std::string> Users::updateColumns() const
@@ -521,6 +603,10 @@ const std::vector<std::string> Users::updateColumns() const
     if(dirtyFlag_[3])
     {
         ret.push_back(getColumnName(3));
+    }
+    if(dirtyFlag_[4])
+    {
+        ret.push_back(getColumnName(4));
     }
     return ret;
 }
@@ -571,6 +657,17 @@ void Users::updateArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
+    if(dirtyFlag_[4])
+    {
+        if(getDefaultCity())
+        {
+            binder << getValueOfDefaultCity();
+        }
+        else
+        {
+            binder << nullptr;
+        }
+    }
 }
 Json::Value Users::toJson() const
 {
@@ -607,6 +704,14 @@ Json::Value Users::toJson() const
     {
         ret["created_at"]=Json::Value();
     }
+    if(getDefaultCity())
+    {
+        ret["default_city"]=getValueOfDefaultCity();
+    }
+    else
+    {
+        ret["default_city"]=Json::Value();
+    }
     return ret;
 }
 
@@ -619,7 +724,7 @@ Json::Value Users::toMasqueradedJson(
     const std::vector<std::string> &pMasqueradingVector) const
 {
     Json::Value ret;
-    if(pMasqueradingVector.size() == 4)
+    if(pMasqueradingVector.size() == 5)
     {
         if(!pMasqueradingVector[0].empty())
         {
@@ -665,6 +770,17 @@ Json::Value Users::toMasqueradedJson(
                 ret[pMasqueradingVector[3]]=Json::Value();
             }
         }
+        if(!pMasqueradingVector[4].empty())
+        {
+            if(getDefaultCity())
+            {
+                ret[pMasqueradingVector[4]]=getValueOfDefaultCity();
+            }
+            else
+            {
+                ret[pMasqueradingVector[4]]=Json::Value();
+            }
+        }
         return ret;
     }
     LOG_ERROR << "Masquerade failed";
@@ -699,6 +815,14 @@ Json::Value Users::toMasqueradedJson(
     else
     {
         ret["created_at"]=Json::Value();
+    }
+    if(getDefaultCity())
+    {
+        ret["default_city"]=getValueOfDefaultCity();
+    }
+    else
+    {
+        ret["default_city"]=Json::Value();
     }
     return ret;
 }
@@ -735,13 +859,18 @@ bool Users::validateJsonForCreation(const Json::Value &pJson, std::string &err)
         if(!validJsonOfField(3, "created_at", pJson["created_at"], err, true))
             return false;
     }
+    if(pJson.isMember("default_city"))
+    {
+        if(!validJsonOfField(4, "default_city", pJson["default_city"], err, true))
+            return false;
+    }
     return true;
 }
 bool Users::validateMasqueradedJsonForCreation(const Json::Value &pJson,
                                                const std::vector<std::string> &pMasqueradingVector,
                                                std::string &err)
 {
-    if(pMasqueradingVector.size() != 4)
+    if(pMasqueradingVector.size() != 5)
     {
         err = "Bad masquerading vector";
         return false;
@@ -789,6 +918,14 @@ bool Users::validateMasqueradedJsonForCreation(const Json::Value &pJson,
                   return false;
           }
       }
+      if(!pMasqueradingVector[4].empty())
+      {
+          if(pJson.isMember(pMasqueradingVector[4]))
+          {
+              if(!validJsonOfField(4, pMasqueradingVector[4], pJson[pMasqueradingVector[4]], err, true))
+                  return false;
+          }
+      }
     }
     catch(const Json::LogicError &e)
     {
@@ -824,13 +961,18 @@ bool Users::validateJsonForUpdate(const Json::Value &pJson, std::string &err)
         if(!validJsonOfField(3, "created_at", pJson["created_at"], err, false))
             return false;
     }
+    if(pJson.isMember("default_city"))
+    {
+        if(!validJsonOfField(4, "default_city", pJson["default_city"], err, false))
+            return false;
+    }
     return true;
 }
 bool Users::validateMasqueradedJsonForUpdate(const Json::Value &pJson,
                                              const std::vector<std::string> &pMasqueradingVector,
                                              std::string &err)
 {
-    if(pMasqueradingVector.size() != 4)
+    if(pMasqueradingVector.size() != 5)
     {
         err = "Bad masquerading vector";
         return false;
@@ -859,6 +1001,11 @@ bool Users::validateMasqueradedJsonForUpdate(const Json::Value &pJson,
       if(!pMasqueradingVector[3].empty() && pJson.isMember(pMasqueradingVector[3]))
       {
           if(!validJsonOfField(3, pMasqueradingVector[3], pJson[pMasqueradingVector[3]], err, false))
+              return false;
+      }
+      if(!pMasqueradingVector[4].empty() && pJson.isMember(pMasqueradingVector[4]))
+      {
+          if(!validJsonOfField(4, pMasqueradingVector[4], pJson[pMasqueradingVector[4]], err, false))
               return false;
       }
     }
@@ -913,6 +1060,17 @@ bool Users::validJsonOfField(size_t index,
             }
             break;
         case 3:
+            if(pJson.isNull())
+            {
+                return true;
+            }
+            if(!pJson.isString())
+            {
+                err="Type error in the "+fieldName+" field";
+                return false;
+            }
+            break;
+        case 4:
             if(pJson.isNull())
             {
                 return true;
