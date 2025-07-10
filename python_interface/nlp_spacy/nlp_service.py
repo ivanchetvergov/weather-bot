@@ -54,9 +54,8 @@ class NlpService:
         text_lower = doc.text.lower()
         found_city = None
 
-        # Извлечение города всегда, если команда его потенциально требует
-        # Это более явный подход, хотя текущая логика поиска города работает и так
-        if matched_command in ["/weather", "/forecast", "/subscribe", "/unsubscribe", "/modify_subscription"]:
+        if matched_command in ["/weather", "/mycity", "/forecast", "/subscribe", \
+                               "/unsubscribe", "/modify_subscription"]:
             # Извлечение города из Doc.ents (более надежно)
             for ent in doc.ents:    
                 if (ent.label_ == "CITY" or ent.label_ == "LOC" or ent.label_ == "GPE") \
