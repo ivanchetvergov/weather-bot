@@ -8,12 +8,9 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 
 from .kafka_service import init_kafka, kafka_response_listener, close_kafka_consumer
 from .command_handlers import *
-from .nlp_handler import nlp_message_handler, set_nlp_processor
+from .nlp_handler import nlp_text_handler
 from .commands import set_telegram_commands
 
-from nlp_spacy.nlp_service import NlpService
-
-nlp_processor: NlpService = None
 
 async def post_init_setup(application):
     await set_telegram_commands(application) 
@@ -38,10 +35,6 @@ if __name__ == "__main__":
 
     init_kafka(KAFKA_BROKERS, KAFKA_COMMANDS_TOPIC, KAFKA_RESPONSES_TOPIC, app)
 
-    nlp_processor = NlpService()
-    set_nlp_processor(nlp_processor)
-    print("NLP service initialized and passed to nlp_handler.")
-
     def run_kafka_listener_in_thread(app_instance, loop_to_use): 
         loop = asyncio.new_event_loop() 
         asyncio.set_event_loop(loop) 
@@ -62,7 +55,7 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("weather", weather_command))
     app.add_handler(CommandHandler("forecast", forecast_command))
 
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, nlp_message_handler))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, nlp_text_handler))
 
     print("Telegram bot started and all messages sending to Kafka.")
     try:

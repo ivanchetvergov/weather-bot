@@ -1,22 +1,26 @@
-
+# python_bot/kafka_service.py
 
 import json
 import asyncio
 import os
-from confluent_kafka import Producer, Consumer, KafkaException, KafkaError
-from telegram import Update 
-from telegram.ext import ApplicationBuilder 
-import time
-from datetime import datetime 
-import logging
-from typing import Tuple, Dict, Any, Optional
+from confluent_kafka import Producer, Consumer, KafkaError
+from telegram import Update
+import time 
 
-logger = logging.getLogger(__name__)
+from telegram.ext import ApplicationBuilder 
+
 
 kafka_producer: Producer = None
 kafka_consumer: Consumer = None
 kafka_app_instance: ApplicationBuilder = None 
 KAFKA_COMMANDS_TOPIC: str = None
+
+def delivery_report(err, msg):
+    if err is not None:
+        print(f"Sending error to Kafka: {err}")
+    else:
+        print(f"Message delivered to {msg.topic()} [{msg.partition()}] @ offset {msg.offset()}")
+
 
 def init_kafka(brokers: str, commands_topic: str, responses_topic: str, app_instance: ApplicationBuilder):
     global kafka_producer, kafka_consumer, kafka_app_instance, KAFKA_COMMANDS_TOPIC
@@ -42,137 +46,57 @@ def init_kafka(brokers: str, commands_topic: str, responses_topic: str, app_inst
         print(f"Error while connecting Kafka Consumer: {e}")
         exit(1)
 
-def delivery_report(err, msg):
-    if err is not None:
-        logger.error(f"Message delivery failed: {err}")
-    else:
-        logger.info(f"Message delivered to {msg.topic()} [{msg.partition()}] @ offset {msg.offset()}")
-
-def _process_telegram_update(update: Update) -> Optional[Tuple[str, Dict[str, Any], int, str]]:
+def send_telegram_update_to_kafka(kafka_payload_dict: dict):
     """
-    Processes a telegram.Update object and returns event_type, payload_container, timestamp, user_id_str.
-    Returns None if the update is not supported.
-    """
-    if update.message: 
-        user_id_str = str(update.message.from_user.id)
-        event_type = "telegram_message"
-        message_dict = update.message.to_dict()
-        
-        message_text = message_dict.get('text', '')
-        command_text = message_text 
-
-        message_timestamp = int(update.effective_message.date.timestamp()) if update.effective_message and update.effective_message.date else int(time.time())
-
-        final_payload_data_container = {
-            "message": {
-                "id": message_dict.get('message_id'),
-                "from": message_dict.get('from'),
-                "chat_id": message_dict.get('chat').get('id') if message_dict.get('chat') else None,
-                "date": message_dict.get('date'), # Telegram date is in Unix timestamp
-                "text": message_text,
-                "command_text": command_text,
-            }
-        }
-        return event_type, final_payload_data_container, message_timestamp, user_id_str
-
-    elif update.callback_query:
-        user_id_str = str(update.callback_query.from_user.id)
-        event_type = "telegram_callback_query"
-        callback_dict = update.callback_query.to_dict()
-        callback_data = callback_dict.get('data', '')
-
-        message_timestamp = int(update.callback_query.message.date.timestamp()) if update.callback_query.message and update.callback_query.message.date else int(time.time())
-
-        final_payload_data_container = {
-            "callback_query": {
-                "id": callback_dict.get('id'),
-                "from": callback_dict.get('from'),
-                "chat_id": callback_dict.get('message', {}).get('chat', {}).get('id'),
-                "data": callback_data,
-                "date": callback_dict.get('message', {}).get('date'),
-                "command_text": callback_data # Default for callback queries
-            }
-        }
-        return event_type, final_payload_data_container, message_timestamp, user_id_str
-    else:
-        logger.warning(f"Update object without message or callback_query. Skipping: {update.update_id}")
-        return None
-
-def _process_custom_dict(data_dict: dict) -> Optional[Tuple[str, Dict[str, Any], int, str]]:
-    """
-    Processes a custom dictionary (e.g., from NLP handler) and returns event_type, payload_container, timestamp, user_id_str.
-    Returns None if the dictionary format is not supported.
-    """
-    event_type = data_dict.get("event_type", "custom_log_event")
-    final_payload_data_container = data_dict.get("data", {}) 
-    message_timestamp = int(time.time())
-    user_id_str = "unknown"
-
-    if "message" in final_payload_data_container and "from" in final_payload_data_container["message"]:
-        user_id_str = str(final_payload_data_container["message"]["from"].get("id", "unknown_user"))
-    elif "callback_query" in final_payload_data_container and "from" in final_payload_data_container["callback_query"]:
-        user_id_str = str(final_payload_data_container["callback_query"]["from"].get("id", "unknown_user"))
-    else:
-        user_id_str = str(data_dict.get("user_id", "unknown_user")) 
-
-
-    if "timestamp" in data_dict:
-        try:
-            if isinstance(data_dict["timestamp"], datetime):
-                message_timestamp = int(data_dict["timestamp"].timestamp())
-            elif isinstance(data_dict["timestamp"], (int, float)):
-                message_timestamp = int(data_dict["timestamp"])
-            elif isinstance(data_dict["timestamp"], str):
-                message_timestamp = int(datetime.fromisoformat(data_dict["timestamp"]).timestamp())
-        except (AttributeError, ValueError) as e:
-            logger.error(f"Error parsing timestamp from dict: {e}")
-            pass # Keep default time.time()
-
-    return event_type, final_payload_data_container, message_timestamp, user_id_str
-
-def send_telegram_update_to_kafka(data_to_send: Update | dict):
-    """
-    Sends a Telegram update or custom dictionary as a Kafka message.
-    The data is formatted to include 'text' (original message) and 'command_text' (processed command).
+    Универсальная функция для отправки Kafka-сообщений.
+    Принимает уже полностью сформированный словарь, готовый к отправке.
+    Словарь должен содержать "event_type", "timestamp" и "data" 
+    со всеми необходимыми полями, включая user_id, chat_id и command/original_text.
     """
     global kafka_producer, KAFKA_COMMANDS_TOPIC
+    
     if kafka_producer is None or KAFKA_COMMANDS_TOPIC is None:
-        logger.error("Kafka Producer or Topic is not initialized. Cannot send message.")
+        print("Kafka Producer or Topic is not initialized. Cannot send message.")
         return
 
-    result = None
-    if isinstance(data_to_send, Update):
-        result = _process_telegram_update(data_to_send)
-    elif isinstance(data_to_send, dict):
-        result = _process_custom_dict(data_to_send)
+    # Проверяем, что необходимые поля для верхнего уровня присутствуют
+    if "event_type" not in kafka_payload_dict or "data" not in kafka_payload_dict:
+        print(f"Error: Invalid Kafka payload dict format. Missing 'event_type' or 'data' at top level. Payload: {kafka_payload_dict}")
+        return
+
+    # Безопасное извлечение user_id для ключа Kafka
+    # Ожидается, что user_id находится в kafka_payload_dict["data"]["user"]["user_id"]
+    user_id = kafka_payload_dict.get("data", {}).get("user", {}).get("user_id")
+    if user_id is None:
+        print(f"Warning: Kafka payload does not contain 'data.user.user_id'. Using 'unknown_user' as key. Payload: {kafka_payload_dict}")
+        user_id_str = "unknown_user"
     else:
-        logger.error(f"Unsupported data type for Kafka: {type(data_to_send)}. Must be Update or dict.")
-        return
+        user_id_str = str(user_id)
+        
+    event_type = kafka_payload_dict["event_type"] # event_type должен быть гарантированно после проверки выше
 
-    if result is None:
-        return 
 
-    event_type, final_payload_data_container, message_timestamp, user_id_str = result
+    message_timestamp = kafka_payload_dict.get("timestamp", int(time.time()))
 
     kafka_payload = {
         "event_type": event_type,
         "timestamp": message_timestamp,
-        "source": "telegram_bot",
-        "data": final_payload_data_container 
+        "source": "telegram_bot", # Источник всегда Telegram бот
+        "data": kafka_payload_dict["data"] # Берем уже сформированный блок "data"
     }
 
     try:
         kafka_producer.produce(
-            KAFKA_COMMANDS_TOPIC,
+            topic=KAFKA_COMMANDS_TOPIC,
             key=user_id_str.encode('utf-8'),
             value=json.dumps(kafka_payload, ensure_ascii=False).encode('utf-8'),
             callback=delivery_report
         )
-        kafka_producer.poll(0) 
+        kafka_producer.poll(0) # Инициируем отправку
     
-        logger.info(f"Sent event '{event_type}' from user '{user_id_str}' to Kafka topic '{KAFKA_COMMANDS_TOPIC}'")
+        print(f"Sent event '{event_type}' from user '{user_id_str}' to Kafka topic '{KAFKA_COMMANDS_TOPIC}'")
     except Exception as e:
-        logger.error(f"Error while sending to Kafka: {e}")
+        print(f"Error while sending to Kafka: {e}. Payload: {kafka_payload}")
 
 async def kafka_response_listener(main_loop_for_telegram): 
     global kafka_consumer, kafka_app_instance 
