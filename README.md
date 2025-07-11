@@ -1,4 +1,4 @@
-# ☁️ Weather-Bot: 
+# ☁️ Weather-Bot
 
 ---
 
