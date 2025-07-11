@@ -11,6 +11,7 @@ struct UserData {
     long long telegram_user_id;
     string username;
     string first_name;
+    optional<string> default_city;
 };
 
 struct MessageData {
@@ -52,4 +53,5 @@ struct ParsedTelegramMessage {
     std::string original_text; 
 
     nlohmann::json original_payload; 
+    std::optional<std::string> command_argument_city;
 };
