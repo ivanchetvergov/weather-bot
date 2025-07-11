@@ -181,8 +181,6 @@ void KafkaMessageService::step2_resolveCityAndCheckRequirements(std::shared_ptr<
 }
 
 void KafkaMessageService::step3_insertMessageAndPreparePayload(std::shared_ptr<AsyncProcessingState> state) {
-    state->enriched_payload = state->parsed_msg.original_payload;
-
     MessageData message_data;
     message_data.user_id = state->parsed_msg.telegram_user_id;
     message_data.text = state->parsed_msg.original_text;
@@ -210,12 +208,10 @@ void KafkaMessageService::step3_insertMessageAndPreparePayload(std::shared_ptr<A
 void KafkaMessageService::step4_dispatchCommand(std::shared_ptr<AsyncProcessingState> state) {
     const std::string base_command_for_dispatch = state->service_ptr->messageParser_.extractBaseCommand(state->parsed_msg.command_text);
 
-    state->final_message_text_for_command = state->command_text_for_db_and_dispatch;    
-
-    state->service_ptr->dispatchCommand(base_command_for_dispatch, // Базовая команда для поиска логики
-                                       state->enriched_payload,
+    state->service_ptr->dispatchCommand(base_command_for_dispatch, 
+                                       state->parsed_msg.original_payload,
                                        state->parsed_msg.telegram_user_id,
-                                       state->final_message_text_for_command, // Используем именно эту строку
+                                       state->command_text_for_db_and_dispatch, 
                                        state->parsed_msg.username,
                                        state->parsed_msg.first_name);
 }

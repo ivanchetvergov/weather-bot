@@ -29,14 +29,14 @@ public:
 
 private:
 
+    // * @brief Структура для хранения асинхронного состояния обработки сообщения Kafka.
     struct AsyncProcessingState {
-            ParsedTelegramMessage parsed_msg;
-            std::optional<std::string> resolved_city;
-            nlohmann::json enriched_payload;
-            std::string final_message_text_for_command;
-            KafkaMessageService* service_ptr;
+            ParsedTelegramMessage parsed_msg; 
+            std::optional<std::string> resolved_city; 
+            
+            KafkaMessageService* service_ptr; // * @brief Указатель на экземпляр KafkaMessageService
 
-            std::string command_text_for_db_and_dispatch; 
+            std::string command_text_for_db_and_dispatch; // * @brief обогащенная строка команды (/weather Москва)
 
             AsyncProcessingState(const ParsedTelegramMessage& msg, KafkaMessageService* svc)
                 : parsed_msg(msg), service_ptr(svc) {}
@@ -59,9 +59,17 @@ private:
 
     void processTelegramMessageAsync(std::shared_ptr<AsyncProcessingState> state);
 
+
+    // * @brief Асинхронный шаг 1: Добавляет или обновляет информацию о пользователе в бд.
     void step1_upsertUser(std::shared_ptr<AsyncProcessingState> state);
+
+    // * @brief Асинхронный шаг 2: Определяет город, относящийся к команде, и проверяет требования.
     void step2_resolveCityAndCheckRequirements(std::shared_ptr<AsyncProcessingState> state);
+
+    // * @brief Асинхронный шаг 3: Вставляет запись о сообщении в бд и подготавливает дату для диспатча.
     void step3_insertMessageAndPreparePayload(std::shared_ptr<AsyncProcessingState> state);
+
+    //  * @brief Асинхронный шаг 4: Отправляет (диспетчирует) команду соответствующей логике.
     void step4_dispatchCommand(std::shared_ptr<AsyncProcessingState> state);
 
     TelegramUpdateParser messageParser_;
