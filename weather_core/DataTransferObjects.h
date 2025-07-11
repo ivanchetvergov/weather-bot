@@ -54,4 +54,28 @@ struct ParsedTelegramMessage {
 
     nlohmann::json original_payload; 
     std::optional<std::string> command_argument_city;
+    
+    nlohmann::json nlp_entities; 
 };
+
+struct ParsedWeatherConditions {
+    std::string city;
+    std::optional<float> tempAbove;
+    std::optional<float> tempBelow;
+    std::optional<bool> rainExpected; 
+    std::optional<bool> snowExpected;
+    std::optional<float> windSpeedGt;
+    std::optional<float> windSpeedLt;
+    std::optional<float> humidityGt;
+    std::optional<float> humidityLt;
+    std::optional<float> pressureGt;
+    std::optional<float> pressureLt;
+
+    std::optional<std::chrono::hours> notifyIntervalHours; 
+    std::optional<std::chrono::minutes> notifyTimeMinutes; 
+                                                         
+    std::optional<bool> notifyOnChange; 
+    std::optional<std::string> detailLevel;
+    std::optional<std::string> units;      
+
+    Json::Value nlpEntities; 
