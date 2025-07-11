@@ -10,7 +10,7 @@
     "users",
     "messages",
     "subscriptions",
-    "alerts",
+    "trackings",
     "weather_cache"
   ],
   "relationships": {
