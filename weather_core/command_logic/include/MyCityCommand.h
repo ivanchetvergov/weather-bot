@@ -4,6 +4,7 @@
 #include "ICommandLogic.h"
 #include "KafkaResponseSender.h"
 #include "DataBaseService.h" 
+#include "DataBaseService.h"
 
 class MyCityCommandLogic : public ICommandLogic {
 public:

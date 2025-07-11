@@ -2,15 +2,10 @@
 
 #include "ForecastCommand.h"
 #include "OpenWeatherMapParser.h"
+#include "TelegramUpdateParser.h"
 #include <iostream>
-#include <iomanip>
 #include <string_view>
 #include <sstream>
-#include <ctime>   
-#include <chrono>  
-#include <algorithm> 
-#include <set>
-
 
 using namespace std;
 
@@ -23,21 +18,21 @@ ForecastCommandLogic::ForecastCommandLogic(KafkaResponseSenderPtr sender, PgDbSe
 
 void ForecastCommandLogic::execute(const nlohmann::json& payload,
                                    long long telegram_user_id,
-                                   const string& message_text,
-                                   const string& username,
-                                   const string& first_name
+                                   const std::string& message_text, 
+                                   const std::string& username,
+                                   const std::string& first_name
 ) {
-    cout << "ForecastCommandLogic: Executing for user " << telegram_user_id << " with message: '" << message_text << "'" << endl;
+    std::cout << "ForecastCommandLogic: Executing for user " << telegram_user_id << " with message: '" << message_text << "'" << std::endl;
 
-    string city = OpenWeatherMapParser::extractCityFromMessage(message_text);
+    std::optional<std::string> city_arg_opt = TelegramUpdateParser::extractCityArgumentFromCommand(message_text);
 
-    if (city.empty()) {
-        responseSender_->sendTelegramMessage(telegram_user_id,
-                                             "Пожалуйста, укажите город для прогноза. Пример: /forecast Москва");
-        return;
+    if (city_arg_opt.has_value() && !city_arg_opt.value().empty()) {
+        std::string city = city_arg_opt.value();
+        getForecastData(city, telegram_user_id, message_text);
+    } else {
+        std::cerr << "ERROR: ForecastCommandLogic received message_text without a city, but it was expected." << std::endl;
+        sendErrorMessage(telegram_user_id, "Не удалось определить город для прогноза. Пожалуйста, укажите город. Пример: /forecast Москва");
     }
-
-    getForecastData(city, telegram_user_id, message_text);
 }
 
 void ForecastCommandLogic::getForecastData(
