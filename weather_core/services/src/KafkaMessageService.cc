@@ -161,8 +161,8 @@ void KafkaMessageService::step1_upsertUser(std::shared_ptr<AsyncProcessingState>
 void KafkaMessageService::step2_resolveCityAndCheckRequirements(std::shared_ptr<AsyncProcessingState> state) {
 
     std::future<std::optional<std::string>> get_city_fut = state->service_ptr->getCityForCommand(
-        state->parsed_msg.telegram_user_id, state->parsed_msg.original_text); // ИСПОЛЬЗУЕМ original_text
-    state->resolved_city = get_city_fut.get(); // Блокирующее ожидание, сохраняем результат
+        state->parsed_msg.telegram_user_id, state->parsed_msg.original_text); 
+    state->resolved_city = get_city_fut.get();
 
     const std::string command_name = state->service_ptr->messageParser_.extractBaseCommand(state->parsed_msg.command_text);
 
@@ -172,7 +172,6 @@ void KafkaMessageService::step2_resolveCityAndCheckRequirements(std::shared_ptr<
         std::cout << "    KafkaMessageService: Command '" << command_name << "' requires city, but no city resolved for user " << state->parsed_msg.telegram_user_id << std::endl;
         state->service_ptr->sendErrorMessageToUser(state->parsed_msg.telegram_user_id,
                                                    "Город не указан в команде и не установлен по умолчанию. Пожалуйста, укажите город. Пример: " + command_name + " Москва");
-        // Бросаем исключение, чтобы остановить дальнейшее выполнение цепочки в catch блоке handleTelegramMessage
         throw std::runtime_error("City required but not resolved for command: " + command_name);
     }
     if (state->resolved_city.has_value() && !state->resolved_city.value().empty()) {
