@@ -1,40 +1,40 @@
-# nlp_app.py
+# nlp_spacy/nlp_app.py
 
-import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-import sys
-import os
-import json 
-from typing import Optional, Dict, Any
+import logging
 
-# Добавим Optional[Dict[str, Any]] для типа возвращаемого значения, чтобы быть точнее
-# Это не влияет на работоспособность, но улучшает читаемость и подсказки типов
+from nlp_spacy.nlp_service import NlpService
+from logger_config import setup_logging
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__))) 
-from nlp_service import NlpService 
+setup_logging() 
+logger = logging.getLogger(__name__)
 
-app = FastAPI()
-nlp_processor = NlpService()
+app = FastAPI() # init app w FastAPI
+nlp_processor = NlpService() # initialize the nlp service
 
-class NLPRequest(BaseModel):
-    user_id: int
-    username: Optional[str] = None
-    first_name: Optional[str] = None
-    chat_id: int
-    text: str
+class TextInput(BaseModel): 
+    text: str # the text string to be processed
 
 @app.post("/process_text")
-async def process_text_endpoint(request: NLPRequest) -> Dict[str, Any]: # Добавили тип возвращаемого значения
-    print(f"Received NLP request: {json.dumps(request.model_dump(), ensure_ascii=False)}")
-    result = nlp_processor.process_text(request.text)
-    
-    if result:
-        print(f"NLP processed result: {json.dumps(result, ensure_ascii=False)}")
-        return {"command": result.get("command", ""), "entities": result.get("entities", {})}
-    else:
-        print("NLP did not recognize a command.")
-        return {"command": "", "entities": {}} 
+async def process_text(input_data: TextInput):
+    """
+    api endpoint to process incoming text.
+    it takes a text string, processes it using the nlp service, and returns the extracted intent and entities.
+    """
+    try:
+        logger.info(f"received request for text: '{input_data.text}'")
+        result = nlp_processor.process_text(input_data.text)
+        logger.info(f"processed text: '{input_data.text}', result: {result}")
+        return result
+    except Exception as e:
+        logger.exception(f"error processing text: '{input_data.text}'")
+        raise HTTPException(status_code=500, detail=str(e))
 
-if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+@app.get("/health")
+async def health_check():
+    """
+    api endpoint for health checks.
+    returns a simple status message to indicate that the service is running.
+    """
+    return {"status": "ok", "message": "nlp service is running"}
