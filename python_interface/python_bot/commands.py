@@ -1,15 +1,19 @@
 # python_bot/commands.py
 
+import logging
 from telegram import BotCommand
-from telegram.ext import Application 
+from telegram.ext import Application
 
+logger = logging.getLogger(__name__)
+
+# Список команд для установки в Telegram
 BOT_COMMANDS = [
     BotCommand("start", "Начать работу с ботом"),
     BotCommand("weather", "Текущая погода: /weather <город>"),
     BotCommand("forecast", "Прогноз погоды: /forecast <город>"),
-    BotCommand("mycity", "Сохранить/показать город по умолчанию: /mycity [город]"),
-    BotCommand("subscribe", "Подписаться на уведомления: /subscribe <город> [время UTC]"),
-    BotCommand("unsubscribe", "Отписаться от уведомлений: /unsubscribe <город> | all"),
+    BotCommand("mycity", "Управлять городом по умолчанию: /mycity [город]"),
+    BotCommand("subscribe", "Подписаться на уведомления: /subscribe <город> [условия]"),
+    BotCommand("unsubscribe", "Отменить подписку: /unsubscribe <город> | all"),
     BotCommand("mysubscriptions", "Показать мои подписки"),
     BotCommand("track", "Отслеживать условие погоды: /track <город> <условие>"),
     BotCommand("untrack", "Отменить отслеживание: /untrack <id> | all"),
@@ -21,8 +25,9 @@ BOT_COMMANDS = [
 ]
 
 async def set_telegram_commands(app_instance: Application):
+    """Sets the list of commands for the Telegram bot."""
     try:
         await app_instance.bot.set_my_commands(BOT_COMMANDS)
-        print("Telegram commands set successfully.", flush=True)
+        logger.info("Telegram commands set successfully.")
     except Exception as e:
-        print(f"Error setting Telegram commands: {e}", flush=True)
+        logger.error(f"Error setting Telegram commands: {e}")
