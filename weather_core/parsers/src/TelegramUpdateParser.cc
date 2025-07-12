@@ -102,7 +102,7 @@ ParsedTelegramMessage TelegramUpdateParser::parse(const std::string& json_payloa
     return parsed_msg;
 }
 
-std::string TelegramUpdateParser::extractbasecommand(const std::string& full_command_text) {
+std::string TelegramUpdateParser::extractBaseCommand(const std::string& full_command_text) {
     // finds the first space to separate the base command from arguments
     size_t space_pos = full_command_text.find(' ');
     if (space_pos != std::string::npos) {
@@ -111,7 +111,7 @@ std::string TelegramUpdateParser::extractbasecommand(const std::string& full_com
     return full_command_text; // if no space, the whole string is the command
 }
 
-std::optional<std::string> TelegramUpdateParser::extractcityargumentfromcommand(const std::string& full_command_text) {
+std::optional<std::string> TelegramUpdateParser::extractCityArgumentFromCommand(const std::string& full_command_text) {
     // finds the position of the first space
     size_t first_space_pos = full_command_text.find(' ');
     // if no space or space is at the very end, no argument
