@@ -47,7 +47,7 @@ async def _process_user_request(update: Update,
     # 3. build the kafka message payload
     payload = build_kafka_payload(
         update=update,
-        event_type="telegram_command", # or "telegram_message" if this handler processes general text
+        event_type="telegram_command",
         command_or_intent=intent,      # the recognized intent
         original_text=full_text,
         entities=entities              # the recognized entities
@@ -55,7 +55,6 @@ async def _process_user_request(update: Update,
     
     await send_kafka_message(payload)
     await update.message.reply_text(initial_reply_text)
-
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id

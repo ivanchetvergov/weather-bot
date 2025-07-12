@@ -24,7 +24,7 @@ async def process_nlp_text_message(update: Update, context: ContextTypes.DEFAULT
 
     user_text = update.message.text
     user_id = update.effective_user.id
-    chat_id = update.effective_chat.chat_id 
+    chat_id = update.effective_chat.id 
     print(f"\n" + "="*80 + "\n")
     logger.info(f"processing non-command text message from user {user_id} in chat {chat_id}: '{user_text}'")
 
@@ -38,10 +38,16 @@ async def process_nlp_text_message(update: Update, context: ContextTypes.DEFAULT
     )
     
     # the nlp service returns the recognized intent (e.g., "get_weather") and extracted entities
-    intent = nlp_result.get("command", "unknown_text") 
-    entities = nlp_result.get("entities", {})         
+    if nlp_result is None:
+        logger.error(f"nlp service call returned None for user {user_id}, text: '{user_text}'")
+        intent = "nlp_error" # Default to an error intent
+        entities = {}        # Default to an empty dictionary
+    else:
+        intent = nlp_result.get("command", "unknown_text") 
+        # Ensure entities is always a dictionary, even if nlp_result.get("entities") returns None
+        entities = nlp_result.get("entities", {}) or {} # Added `or {}` for extra safety
 
-    # --- apply normalization to recognized entities ---
+    #  normalization to recognized entities
     if "city" in entities and entities["city"]:
         current_city_text = entities["city"].lower() # get the city text in lowercase
         # apply normalization: replace with canonical name if found, otherwise keep original
@@ -50,15 +56,13 @@ async def process_nlp_text_message(update: Update, context: ContextTypes.DEFAULT
     if "condition" in entities and entities["condition"]:
         current_condition_text = entities["condition"].lower()
         entities["condition"] = CONDITION_NORMALIZATION.get(current_condition_text, entities["condition"])
-    # --- end normalization ---
 
     logger.info(f"nlp recognized intent: {intent}, normalized entities: {entities}")
 
-    # build the kafka payload. the event_type will be "telegram_message",
-    # and command_or_intent will be the nlp-recognized intent.
+
     payload = build_kafka_payload(
         update=update,
-        event_type="telegram_message", # type of event: general message
+        event_type="telegram_command", # type of event: general message
         command_or_intent=intent,      # what nlp recognized as the intent
         original_text=user_text,
         entities=entities             # pass the (now normalized) entities
