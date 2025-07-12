@@ -5,9 +5,9 @@ from spacy.matcher import Matcher
 import pymorphy3 # morphological analyzer for Russian and Ukrainian languages.
 import logging 
 from typing import Dict, Any
-import datetime
 
 from nlp_spacy.nlp_patterns import NLP_PATTERNS
+from nlp_spacy.entity_extractor import EntityExtractor
 
 from nlp_spacy.config import (
     SPACY_MODEL_NAME,
@@ -26,6 +26,8 @@ class NlpService:
         self.nlp = spacy.load(SPACY_MODEL_NAME)
         self.morph = pymorphy3.MorphAnalyzer()
         self.matcher = Matcher(self.nlp.vocab) 
+
+        self.entity_extractor = EntityExtractor(self.nlp, self.morph)
         
         self._add_entity_ruler_patterns()
         self._add_intent_patterns_to_matcher()
@@ -54,7 +56,7 @@ class NlpService:
         doc = self.nlp(text.lower())
 
         intent = self._recognize_intent(doc)
-        entities = self._extract_entities(doc)
+        entities = self.entity_extractor.extract_entities(doc, intent)
 
         return {"command": intent, "entities": entities}
 
@@ -72,46 +74,3 @@ class NlpService:
             return intent_name
         
         return "unknown_text"
-
-    def _extract_entities(self, doc) -> Dict[str, Any]:
-        """extracts entities (city, date, conditions, etc.) from the text."""
-        entities = {}
-
-        # extract city entity, prioritizing entity ruler matches
-        for ent in doc.ents:
-            if ent.label_ == "CITY":
-                parsed_city = self.morph.parse(ent.text)[0]
-                entities["city"] = parsed_city.normal_form.capitalize()
-                logger.debug(f"extracted city: {entities['city']}")
-                break # assume only one city is relevant for now
-
-        # extract date entity, prioritizing entity ruler matches
-        for ent in doc.ents:
-            if ent.label_ == "DATE":
-                date_text = ent.text
-                if date_text == "сегодня": # today
-                    entities["date"] = datetime.date.today().isoformat()
-                elif date_text == "завтра": # tomorrow
-                    entities["date"] = (datetime.date.today() + datetime.timedelta(days=1)).isoformat()
-                elif date_text == "послезавтра": # day after tomorrow
-                    entities["date"] = (datetime.date.today() + datetime.timedelta(days=2)).isoformat()
-                elif date_text in DAY_MAPPINGS_NUM: # specific day of the week
-                    today_weekday = datetime.date.today().weekday()
-                    target_weekday = DAY_MAPPINGS_NUM[date_text]
-                    days_diff = (target_weekday - today_weekday + 7) % 7
-                    # if the day is "monday" and today is monday, it means next monday
-                    if days_diff == 0 and date_text not in ["сегодня", "завтра", "послезавтра"]:
-                        days_diff = 7
-                    entities["date"] = (datetime.date.today() + datetime.timedelta(days=days_diff)).isoformat()
-                else:
-                    entities["date"] = date_text # fallback for other date formats
-                logger.debug(f"extracted date: {entities['date']}")
-                break # assume only one date is relevant for now
-
-        # extract weather condition entity, prioritizing entity ruler matches
-        for ent in doc.ents:
-            if ent.label_ == "WEATHER_CONDITION":
-                normalized_condition = CONDITION_NORMALIZATION.get(ent.text, ent.text)
-                entities["condition"] = normalized_condition
-                logger.debug(f"extracted condition: {entities['condition']}")
-                break # assume only one condition is relevant for now
