@@ -1,18 +1,22 @@
 #include "KafkaMessageService.h"
 
-#include <utility>
-#include <trantor/utils/Date.h>
-#include "DataTransferObjects.h"
-#include <set> 
+#include <utility>                  // for std::move
+#include <trantor/utils/Date.h>     // for trantor::Date
+#include "DataTransferObjects.h"    // for UserData, MessageData, ParsedTelegramMessage, WeatherCacheData
+#include <thread>                   // for std::thread (async processing)
 
 using namespace std;
-using namespace drogon_model::weather_bot;
+using namespace drogon_model::weather_bot; // assuming drogon models
 using nlohmann::json;
 
 KafkaMessageService::KafkaMessageService() {
     cout << "KafkaMessageService initialized." << endl;
+    // define which commands explicitly require a city argument
     commandsRequiringCity_.insert("/weather");
     commandsRequiringCity_.insert("/forecast");
+    commandsRequiringCity_.insert("/mycity");
+    commandsRequiringCity_.insert("/subscribe"); 
+    commandsRequiringCity_.insert("/track");   
 }
 
 void KafkaMessageService::set_ResponseSender(KafkaResponseSenderPtr response_sender) {
@@ -46,12 +50,11 @@ void KafkaMessageService::registerCommandLogic(const string& command_name, IComm
 }
 
 void KafkaMessageService::processMessage(const cppkafka::Message& msg) {
-    
     string payload_str = msg.get_payload();
-    ParsedTelegramMessage parsed_msg = messageParser_.parse(payload_str);
+    ParsedTelegramMessage parsed_msg = messageParser_.parse(payload_str); // use the new parser
 
     if (!parsed_msg.is_valid) {
-        cerr << "  ERROR: Failed to parse Kafka message payload. Skipping processing." << endl;
+        cerr << "  ERROR: Failed to parse Kafka message payload or it was invalid. Skipping processing. Payload: " << payload_str << endl;
         if (parsed_msg.telegram_user_id != 0 && responseSender_) {
             responseSender_->sendTelegramMessage(parsed_msg.telegram_user_id, "Извините, не удалось понять ваше сообщение. Пожалуйста, попробуйте еще раз.");
         }
@@ -60,7 +63,8 @@ void KafkaMessageService::processMessage(const cppkafka::Message& msg) {
 
     cout << endl << "    Event Type: " << parsed_msg.event_type << endl;
 
-    if (parsed_msg.event_type == "telegram_message") {
+    // the python bot now always sends 'telegram_command' after nlp processing
+    if (parsed_msg.event_type == "telegram_command") { 
         handleTelegramMessage(parsed_msg);
     }
     else if (parsed_msg.event_type == "/weather_api_response") {
@@ -74,7 +78,7 @@ void KafkaMessageService::processMessage(const cppkafka::Message& msg) {
     }
 }
 
-void KafkaMessageService::handleWeatherApiResponse(const ParsedTelegramMessage& parsed_msg) {
+void KafkaMessageService::handleWeatherApiResponse(const ParsedTelegramMessage& parsed_msg) { 
     cout << "      Processing Weather API Response for Telegram User ID: " << parsed_msg.telegram_user_id << endl;
 
     if (!dbService_) {
@@ -82,6 +86,7 @@ void KafkaMessageService::handleWeatherApiResponse(const ParsedTelegramMessage& 
         return;
     }
 
+    // directly use parsed_msg.original_payload as it holds the raw kafka data for this event type
     if (parsed_msg.original_payload.count("city") &&
         parsed_msg.original_payload.count("timestamp") &&
         parsed_msg.original_payload.count("json_data"))
@@ -92,6 +97,7 @@ void KafkaMessageService::handleWeatherApiResponse(const ParsedTelegramMessage& 
         cache_data.json_data = parsed_msg.original_payload["json_data"];
 
         dbService_->upsertWeatherCache(cache_data); 
+        cout << "    KafkaMessageService: Weather data cached for city: " << cache_data.city << endl;
     } else {
         cerr << "WARNING: Missing 'city', 'timestamp', or 'json_data' in /weather_api_response payload. Cannot cache weather." << endl;
     }
@@ -104,7 +110,7 @@ void KafkaMessageService::handleWeatherApiResponse(const ParsedTelegramMessage& 
 void KafkaMessageService::dispatchCommand(const string& command_name,
                                         const nlohmann::json& payload,
                                         long long telegram_user_id,
-                                        const string& message_text,
+                                        const string& message_text, // this is now command_text_for_db_and_dispatch
                                         const string& username,
                                         const string& first_name) {
     auto it = commandLogics_.find(command_name);
@@ -126,6 +132,7 @@ void KafkaMessageService::handleTelegramMessage(const ParsedTelegramMessage& par
     std::cout << "      First Name: " << parsed_msg.first_name << std::endl;
     std::cout << "      Original Text: " << parsed_msg.original_text << std::endl;
     std::cout << "      Command/Intent: " << parsed_msg.command_text << std::endl;
+    std::cout << "      NLP Entities: " << parsed_msg.nlp_entities.dump() << std::endl; // <-- log entities
 
     if (!dbService_) {
         std::cerr << "ERROR: PgDbService is not set in KafkaMessageService. Cannot save user/message." << std::endl;
@@ -134,12 +141,13 @@ void KafkaMessageService::handleTelegramMessage(const ParsedTelegramMessage& par
     }
 
     auto state = std::make_shared<AsyncProcessingState>(parsed_msg, this);
+    // detach the thread to not block the kafka consumer
     std::thread([state]() {
         try {
             state->service_ptr->step1_upsertUser(state);
-            state->service_ptr->step2_resolveCityAndCheckRequirements(state); // Заполнит state->resolved_city
+            state->service_ptr->step2_resolveCityAndCheckRequirements(state);
             state->service_ptr->step3_insertMessageAndPreparePayload(state);
-            state->service_ptr->step4_dispatchCommand(state); // Сформирует и отправит обогащенную строку
+            state->service_ptr->step4_dispatchCommand(state);
         } catch (const std::exception& e) {
             std::cerr << "ERROR in Telegram message processing chain for user " << state->parsed_msg.telegram_user_id << ": " << e.what() << std::endl;
             state->service_ptr->sendErrorMessageToUser(state->parsed_msg.telegram_user_id, "Извините, произошла внутренняя ошибка при обработке вашей команды.");
@@ -154,18 +162,19 @@ void KafkaMessageService::step1_upsertUser(std::shared_ptr<AsyncProcessingState>
     user_data.first_name = state->parsed_msg.first_name;
 
     std::future<void> upsert_fut = state->service_ptr->dbService_->upsertUser(user_data);
-    upsert_fut.get();
-    std::cout << "    KafkaMessageService: User upserted successfully." << std::endl;
+    upsert_fut.get(); // wait for the db operation to complete
+    std::cout << "    KafkaMessageService: User upserted successfully for ID: " << user_data.telegram_user_id << std::endl;
 }
 
 void KafkaMessageService::step2_resolveCityAndCheckRequirements(std::shared_ptr<AsyncProcessingState> state) {
-
+    // getCityForCommand (from text or default user's)
     std::future<std::optional<std::string>> get_city_fut = state->service_ptr->getCityForCommand(
-        state->parsed_msg.telegram_user_id, state->parsed_msg.original_text); 
-    state->resolved_city = get_city_fut.get();
+        state->parsed_msg.telegram_user_id, state->parsed_msg.nlp_entities); 
+    state->resolved_city = get_city_fut.get(); // get the resolved city
 
-    const std::string command_name = state->service_ptr->messageParser_.extractBaseCommand(state->parsed_msg.command_text);
+    const std::string command_name = state->parsed_msg.command_text; // command_text is already the base intent from nlp
 
+    // check if the command requires a city and if one was not resolved
     bool city_is_required_for_command = state->service_ptr->commandsRequiringCity_.count(command_name) > 0;
 
     if (city_is_required_for_command && (!state->resolved_city.has_value() || state->resolved_city.value().empty())) {
@@ -184,46 +193,51 @@ void KafkaMessageService::step3_insertMessageAndPreparePayload(std::shared_ptr<A
     message_data.user_id = state->parsed_msg.telegram_user_id;
     message_data.text = state->parsed_msg.original_text;
 
-    const std::string command_name_base = state->service_ptr->messageParser_.extractBaseCommand(state->parsed_msg.command_text);
-    bool city_is_required_for_command = state->service_ptr->commandsRequiringCity_.count(command_name_base) > 0;
+    // the command_text from parsed_msg is already the nlp-recognized intent
+    const std::string base_nlp_command = state->parsed_msg.command_text;
 
+    // if a city was resolved and the command requires it, append it for db/dispatch clarity
+    bool city_is_required_for_command = state->service_ptr->commandsRequiringCity_.count(base_nlp_command) > 0;
     if (city_is_required_for_command && state->resolved_city.has_value() && !state->resolved_city.value().empty()) {
-        state->command_text_for_db_and_dispatch = command_name_base + " " + state->resolved_city.value();
+        state->command_text_for_db_and_dispatch = base_nlp_command + " " + state->resolved_city.value();
         std::cout << "    KafkaMessageService: Formed command_text for DB and dispatch: '" << state->command_text_for_db_and_dispatch << "'" << std::endl;
     } else {
-        state->command_text_for_db_and_dispatch = state->parsed_msg.command_text;
-        std::cout << "    KafkaMessageService: Using original command_text for DB and dispatch: '" << state->command_text_for_db_and_dispatch << "'" << std::endl;
+        // otherwise, use the nlp-recognized command as is
+        state->command_text_for_db_and_dispatch = base_nlp_command;
+        std::cout << "    KafkaMessageService: Using original NLP-recognized command_text for DB and dispatch: '" << state->command_text_for_db_and_dispatch << "'" << std::endl;
     }
 
     message_data.command_text = state->command_text_for_db_and_dispatch; 
     std::cout << "    KafkaMessageService: Saving command_text to DB: '" << message_data.command_text << "'" << std::endl;
 
-
     std::future<void> insert_msg_fut = state->service_ptr->dbService_->insertMessage(message_data);
-    insert_msg_fut.get(); 
-    std::cout << "    KafkaMessageService: User and message (raw text + command text) saved to DB." << std::endl;
+    insert_msg_fut.get(); // wait for the db operation to complete
+    std::cout << "    KafkaMessageService: User message saved to DB for user ID: " << message_data.user_id << std::endl;
 }
 
 void KafkaMessageService::step4_dispatchCommand(std::shared_ptr<AsyncProcessingState> state) {
-    const std::string base_command_for_dispatch = state->service_ptr->messageParser_.extractBaseCommand(state->parsed_msg.command_text);
+    const std::string base_command_for_dispatch = state->parsed_msg.command_text;
 
+    // pass the original_payload as it contains the full nlp_entities object
     state->service_ptr->dispatchCommand(base_command_for_dispatch, 
-                                       state->parsed_msg.original_payload,
+                                       state->parsed_msg.original_payload, // <-- pass original_payload with nlp_entities
                                        state->parsed_msg.telegram_user_id,
-                                       state->command_text_for_db_and_dispatch, 
+                                       state->command_text_for_db_and_dispatch, // for db/logging consistency
                                        state->parsed_msg.username,
                                        state->parsed_msg.first_name);
 }
 
-
-std::future<std::optional<std::string>> KafkaMessageService::getCityForCommand(long long telegram_user_id, const std::string& message_text) {
-    std::optional<std::string> city_arg_opt = TelegramUpdateParser::extractCityArgumentFromCommand(message_text);
-
-    if (city_arg_opt.has_value() && !city_arg_opt.value().empty()) {
+std::future<std::optional<std::string>> KafkaMessageService::getCityForCommand(long long telegram_user_id, const nlohmann::json& nlp_entities) {
+    // 1. try to get city from nlp entities first
+    if (nlp_entities.contains("city") && nlp_entities["city"].is_string() && !nlp_entities["city"].get<std::string>().empty()) {
+        std::string city_from_nlp = nlp_entities["city"].get<std::string>();
         std::promise<std::optional<std::string>> prom;
-        prom.set_value(city_arg_opt);
+        prom.set_value(city_from_nlp);
+        std::cout << "    KafkaMessageService: City found in NLP entities: " << city_from_nlp << std::endl;
         return prom.get_future();
-    } else {
+    } 
+    // 2. if not found in nlp entities, try to get user's default city from db
+    else {
         if (!dbService_) {
             std::promise<std::optional<std::string>> prom;
             prom.set_exception(std::make_exception_ptr(std::runtime_error("Database service is not set. Cannot get default city.")));
@@ -233,7 +247,12 @@ std::future<std::optional<std::string>> KafkaMessageService::getCityForCommand(l
         auto prom = std::make_shared<std::promise<std::optional<std::string>>>();
 
         dbService_->getUserDefaultCity(telegram_user_id,
-            [prom](std::optional<std::string> default_city_opt) {
+            [prom, telegram_user_id](std::optional<std::string> default_city_opt) {
+                if (default_city_opt.has_value()) {
+                    std::cout << "    KafkaMessageService: Default city found from DB for user " << telegram_user_id << ": " << default_city_opt.value() << std::endl;
+                } else {
+                    std::cout << "    KafkaMessageService: No default city found from DB for user " << telegram_user_id << std::endl;
+                }
                 prom->set_value(default_city_opt);
             },
             [prom, telegram_user_id](const std::exception& e) {

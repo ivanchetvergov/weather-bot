@@ -29,12 +29,6 @@ struct SubscriptionData {
     optional<string> notify_time; 
 };
 
-struct AlertData {
-    long long user_id;
-    string city;
-    string condition; 
-};
-
 struct WeatherCacheData {
     string city;
     trantor::Date timestamp; 
@@ -79,3 +73,4 @@ struct ParsedWeatherConditions {
     std::optional<std::string> units;      
 
     Json::Value nlpEntities; 
+};

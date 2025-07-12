@@ -243,9 +243,9 @@ std::future<void> PgDbService::insertSubscription(const SubscriptionData& sub_da
         newSub.setTempAboveToNull();
     }
     if (sub_data.rain.has_value()) {
-        newSub.setRain(sub_data.rain.value());
+        // newSub.setRain(sub_data.rain.value());
     } else {
-        newSub.setRainToNull();
+        // newSub.setRainToNull();
     }
     if (sub_data.wind_speed_gt.has_value()) {
         newSub.setWindSpeedGt(sub_data.wind_speed_gt.value());
@@ -275,37 +275,6 @@ std::future<void> PgDbService::insertSubscription(const SubscriptionData& sub_da
         });
 
     return fut;
-}
-
-// Alerts
-// Теперь явно указываем std::future
-std::future<void> PgDbService::insertAlert(const AlertData& alert_data) {
-    auto prom = std::make_shared<std::promise<void>>();
-    std::future<void> fut = prom->get_future(); 
-
-    if (!dbClient_) {
-        return handleDbClientNotAvailable(prom);
-    }
-
-    auto alertsMapper = Mapper<Alerts>(dbClient_);
-    Alerts newAlert;
-    newAlert.setUserId(alert_data.user_id);
-    newAlert.setCity(alert_data.city);
-    newAlert.setAlertCondition(alert_data.condition);
-
-    alertsMapper.insert(newAlert,
-        [prom](Alerts insertedAlert) {
-            prom->set_value(); 
-        },
-        [prom](const DrogonDbException& e_insert) {
-            std::cerr << "ERROR in DB insert (insertAlert): " << e_insert.base().what() << std::endl;
-            if (auto sqlError = dynamic_cast<const SqlError*>(&e_insert.base())) {
-                std::cerr << "SQLSTATE: " << sqlError->sqlState() << ", Query: " << sqlError->query() << std::endl;
-            }
-            prom->set_exception(std::make_exception_ptr(e_insert));
-        });
-
-    return fut; 
 }
 
 // Теперь явно указываем std::future

@@ -7,14 +7,13 @@
 #include <string>
 #include <memory>
 #include <future> 
-#include <functional> //
+#include <functional> 
 
 #include "DataTransferObjects.h"
 
 #include "Users.h" 
 #include "Messages.h"
 #include "Subscriptions.h"
-#include "Alerts.h"
 #include "WeatherCache.h"
 
 class PgDbService {
@@ -24,7 +23,6 @@ public:
     std::future<void> upsertUser(const UserData& user_data);
     std::future<void> insertMessage(const MessageData& message_data);
     std::future<void> insertSubscription(const SubscriptionData& sub_data);
-    std::future<void> insertAlert(const AlertData& alert_data);
     std::future<void> upsertWeatherCache(const WeatherCacheData& cache_data);
 
     std::future<void> setUserDefaultCity(long long telegram_user_id,

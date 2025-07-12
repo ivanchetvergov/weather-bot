@@ -30,7 +30,7 @@ void MyCityCommandLogic::execute(const nlohmann::json& payload,
 ) {
     
     std::string city_to_set = TelegramUpdateParser::extractCityArgumentFromCommand(message_text).value_or("");
-
+    // std::cout << "[DEBUG] full massage: " << message_text << " city: " << city_to_set << std::endl;
     if (city_to_set.empty()) {
         responseSender_->sendTelegramMessage(telegram_user_id, "Пожалуйста, укажите город для установки по умолчанию. Пример: установи город по умолчанию Москва");
         return;
