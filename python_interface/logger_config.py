@@ -11,8 +11,6 @@ def setup_logging(log_file='app.log', level=logging.INFO, max_bytes=10*1024*1024
     Args:
         log_file (str): Имя файла для логов.
         level (int): Минимальный уровень логирования (e.g., logging.INFO, logging.DEBUG).
-        max_bytes (int): Максимальный размер файла логов перед ротацией (в байтах).
-        backup_count (int): Количество резервных файлов логов для хранения.
     """
     # Определяем путь к директории для логов
     log_dir = 'logs'
@@ -47,7 +45,7 @@ def setup_logging(log_file='app.log', level=logging.INFO, max_bytes=10*1024*1024
     logging.getLogger('uvicorn.access').setLevel(logging.WARNING)
     logging.getLogger('httpx').setLevel(logging.WARNING)
     logging.getLogger('httpcore').setLevel(logging.WARNING)
-    logging.getLogger('pymorphy3').setLevel(logging.INFO) # Можно установить на WARNING, если его логи мешают
+    logging.getLogger('pymorphy3').setLevel(logging.INFO) 
     
 
     logging.info(f"Logging configured. Logs will be written to {log_path} and console.")
